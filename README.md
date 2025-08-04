@@ -1,13 +1,9 @@
-# [Telegram Desktop][telegram_desktop] – Official Messenger
+# Telebrain - Telegram Desktop with AI Copilot
 
-This is the complete source code and the build instructions for the official [Telegram][telegram] messenger desktop client, based on the [Telegram API][telegram_api] and the [MTProto][telegram_proto] secure protocol.
+This is the complete source code and the build instructions for the Telebrain messenger desktop client, based on the official [Telegram][telegram] messenger desktop client.
 
-[![Version](https://badge.fury.io/gh/telegramdesktop%2Ftdesktop.svg)](https://github.com/telegramdesktop/tdesktop/releases)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/Windows./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/MacOS./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/Linux./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
+<img width="3498" height="2158" alt="image" src="https://github.com/user-attachments/assets/9a9ad3d8-c7b5-4d29-8db3-9cc582a9d2d3" />
 
-[![Preview of Telegram Desktop][preview_image]][preview_image_url]
 
 The source code is published under GPLv3 with OpenSSL exception, the license is available [here][license].
 
@@ -74,13 +70,8 @@ Version **1.8.15** was the last that supports older systems
 
 [//]: # (LINKS)
 [telegram]: https://telegram.org
-[telegram_desktop]: https://desktop.telegram.org
-[telegram_api]: https://core.telegram.org
-[telegram_proto]: https://core.telegram.org/mtproto
 [license]: LICENSE
 [win32]: docs/building-win.md
 [win64]: docs/building-win-x64.md
 [mac]: docs/building-mac.md
 [linux]: docs/building-linux.md
-[preview_image]: https://github.com/telegramdesktop/tdesktop/blob/dev/docs/assets/preview.png "Preview of Telegram Desktop"
-[preview_image_url]: https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/docs/assets/preview.png
