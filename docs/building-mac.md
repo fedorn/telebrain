@@ -6,7 +6,7 @@ Choose a folder for the future build, for example **/Users/user/TBuild**. It wil
 
 **Note about disk space:** The full build process will require approximately **55 GB** of free space. This includes:
 - **~35 GB** for libraries (when building for both x64 and arm64 architectures)
-- **~20 GB** for the compiled Telegram app (in the `out` folder)
+- **~20 GB** for the compiled Telebrain app (in the `out` folder)
 
 ### Obtain your API credentials
 
