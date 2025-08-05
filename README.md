@@ -8,7 +8,7 @@ The source code is published under GPLv3 with OpenSSL exception, the license is 
 
 ## Support for custom Completions API endpoint, API key, and model
 
-![config](https://github.com/user-attachments/assets/17b82137-9dba-4780-9476-592c959711dc)
+![config](https://github.com/user-attachments/assets/4e165bba-bab1-4d1e-a8b1-f3d560bed7b8)
 
 ## Supported systems
 
