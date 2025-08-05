@@ -2,10 +2,13 @@
 
 This is the complete source code and the build instructions for the Telebrain messenger desktop client, based on the official [Telegram][telegram] messenger desktop client.
 
-<img width="3498" height="2158" alt="image" src="https://github.com/user-attachments/assets/9a9ad3d8-c7b5-4d29-8db3-9cc582a9d2d3" />
-
+![aznavour](https://github.com/user-attachments/assets/cd143ba4-9f68-49b4-a5cc-22bc8249a710)
 
 The source code is published under GPLv3 with OpenSSL exception, the license is available [here][license].
+
+## Support for custom Completions API endpoint, API key, and model
+
+![config](https://github.com/user-attachments/assets/17b82137-9dba-4780-9476-592c959711dc)
 
 ## Supported systems
 
