@@ -57,6 +57,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/media/history_view_media.h"
 #include "history/view/history_view_chat_section.h"
 #include "history/view/history_view_service_message.h"
+#include "ai/ai_chat_widget.h"
 #include "lang/lang_keys.h"
 #include "lang/lang_cloud_manager.h"
 #include "inline_bots/inline_bot_layout_item.h"
@@ -249,6 +250,7 @@ MainWidget::MainWidget(
 , _controller(controller)
 , _dialogsWidth(st::columnMinimalWidthLeft)
 , _thirdColumnWidth(st::columnMinimalWidthThird)
+, _aiChatWidth(Core::App().settings().aiChatWidth())
 , _dialogs(windowId().hasChatsList()
 	? base::make_unique_q<Dialogs::Widget>(
 		this,
@@ -256,6 +258,7 @@ MainWidget::MainWidget(
 		Dialogs::Widget::Layout::Main)
 	: nullptr)
 , _history(std::in_place, this, _controller)
+, _aiChat(this, _controller)
 , _sideShadow(_dialogs
 	? base::make_unique_q<Ui::PlainShadow>(this)
 	: nullptr)
@@ -330,8 +333,16 @@ MainWidget::MainWidget(
 		) | filter(true) | rpl::to_empty,
 		Core::App().settings().dialogsNoChatWidthRatioChanges(
 		) | filter(false) | rpl::to_empty,
-		Core::App().settings().thirdColumnWidthChanges() | rpl::to_empty
+		Core::App().settings().thirdColumnWidthChanges() | rpl::to_empty,
+		Core::App().settings().aiChatWidthChanges() | rpl::to_empty,
+		Core::App().settings().aiChatEnabledValue() | rpl::to_empty
 	) | rpl::start_with_next([=] {
+		updateControlsGeometry();
+	}, lifetime());
+
+	Core::App().settings().aiChatWidthChanges(
+	) | rpl::start_with_next([=](int width) {
+		_aiChatWidth = width;
 		updateControlsGeometry();
 	}, lifetime());
 
@@ -416,6 +427,9 @@ MainWidget::MainWidget(
 		_history->hide();
 	} else {
 		_history->show();
+	}
+	if (_aiChat) {
+		_aiChat->show();
 	}
 	orderWidgets();
 
@@ -2105,6 +2119,12 @@ void MainWidget::orderWidgets() {
 	if (_connecting) {
 		_connecting->raise();
 	}
+	if (_aiChat) {
+		_aiChat->raise();
+	}
+	if (_aiChatResizeArea) {
+		_aiChatResizeArea->raise();
+	}
 	floatPlayerRaiseAll();
 	_playerPlaylist->raise();
 	if (_player) {
@@ -2241,6 +2261,9 @@ void MainWidget::hideAll() {
 	if (_thirdSection) {
 		_thirdSection->hide();
 	}
+	if (_aiChat) {
+		_aiChat->hide();
+	}
 	if (_sideShadow) {
 		_sideShadow->hide();
 	}
@@ -2301,6 +2324,9 @@ void MainWidget::showAll() {
 		}
 		if (_thirdSection) {
 			_thirdSection->show();
+		}
+		if (_aiChat && !isOneColumn()) {
+			_aiChat->show();
 		}
 		if (_thirdShadow) {
 			_thirdShadow->show();
@@ -2417,6 +2443,11 @@ void MainWidget::updateControlsGeometry() {
 			mainSectionGeometry,
 			_contentScrollAddToY);
 		if (_hider) _hider->setGeometry(0, 0, dialogsWidth, height());
+		
+		// In one-column mode, hide the AI chat
+		if (_aiChat) {
+			_aiChat->hide();
+		}
 	} else {
 		auto thirdSectionWidth = _thirdSection ? _thirdColumnWidth : 0;
 		if (_thirdSection) {
@@ -2452,16 +2483,34 @@ void MainWidget::updateControlsGeometry() {
 		const auto mainSectionWidth = width()
 			- dialogsWidth
 			- thirdSectionWidth;
+		const auto aiChatEnabled = Core::App().settings().aiChatEnabled();
+		const auto aiChatWidth = aiChatEnabled ? _aiChatWidth : 0;
+		const auto adjustedMainSectionWidth = mainSectionWidth - aiChatWidth;
+		
+		// Position the AI chat widget
+		if (_aiChat) {
+			if (aiChatEnabled) {
+				_aiChat->setGeometry(
+					width() - thirdSectionWidth - aiChatWidth,
+					mainSectionTop,
+					aiChatWidth,
+					height() - mainSectionTop);
+				_aiChat->show();
+			} else {
+				_aiChat->hide();
+			}
+		}
+		
 		if (_callTopBar) {
-			_callTopBar->resizeToWidth(mainSectionWidth);
+			_callTopBar->resizeToWidth(adjustedMainSectionWidth);
 			_callTopBar->moveToLeft(dialogsWidth, 0);
 		}
 		if (_exportTopBar) {
-			_exportTopBar->resizeToWidth(mainSectionWidth);
+			_exportTopBar->resizeToWidth(adjustedMainSectionWidth);
 			_exportTopBar->moveToLeft(dialogsWidth, _callTopBarHeight);
 		}
 		if (_player) {
-			_player->resizeToWidth(mainSectionWidth);
+			_player->resizeToWidth(adjustedMainSectionWidth);
 			_player->moveToLeft(
 				dialogsWidth,
 				_callTopBarHeight + _exportTopBarHeight);
@@ -2469,14 +2518,14 @@ void MainWidget::updateControlsGeometry() {
 		_history->setGeometryWithTopMoved(QRect(
 			dialogsWidth,
 			mainSectionTop,
-			mainSectionWidth,
+			adjustedMainSectionWidth,
 			height() - mainSectionTop
 		), _contentScrollAddToY);
 		if (_hider) {
 			_hider->setGeometryToLeft(
 				dialogsWidth,
 				0,
-				mainSectionWidth,
+				adjustedMainSectionWidth,
 				height());
 		}
 	}
@@ -2530,6 +2579,17 @@ void MainWidget::refreshResizeAreas() {
 			height());
 	} else if (_thirdColumnResizeArea) {
 		_thirdColumnResizeArea.destroy();
+	}
+
+	if (!isOneColumn() && _aiChat && Core::App().settings().aiChatEnabled()) {
+		ensureAIChatResizeAreaCreated();
+		_aiChatResizeArea->setGeometryToLeft(
+			_aiChat->x(),
+			0,
+			st::historyResizeWidth,
+			height());
+	} else if (_aiChatResizeArea) {
+		_aiChatResizeArea.destroy();
 	}
 }
 
@@ -2599,6 +2659,33 @@ void MainWidget::ensureThirdColumnResizeAreaCreated() {
 	};
 	createResizeArea(
 		_thirdColumnResizeArea,
+		std::move(moveLeftCallback),
+		std::move(moveFinishedCallback));
+}
+
+void MainWidget::ensureAIChatResizeAreaCreated() {
+	if (_aiChatResizeArea) {
+		return;
+	}
+	auto moveLeftCallback = [=](int globalLeft) {
+		// Calculate the new AI Chat width based on the distance from the resize area
+		// to the right edge of the window (since AI Chat is positioned from the right)
+		const auto windowRight = mapToGlobal(QPoint(width(), 0)).x();
+		const auto newWidth = windowRight - globalLeft;
+		Core::App().settings().setAIChatWidth(newWidth);
+	};
+	auto moveFinishedCallback = [=] {
+		if (!_aiChat) {
+			return;
+		}
+		Core::App().settings().setAIChatWidth(std::clamp(
+			Core::App().settings().aiChatWidth(),
+			st::columnMinimalWidthAIChat,
+			st::columnMaximalWidthAIChat));
+		Core::App().saveSettingsDelayed();
+	};
+	createResizeArea(
+		_aiChatResizeArea,
 		std::move(moveLeftCallback),
 		std::move(moveFinishedCallback));
 }

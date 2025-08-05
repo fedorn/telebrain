@@ -896,6 +896,11 @@ topBarGroupCall: IconButton(topBarSearch) {
 	iconOver: icon {{ "top_bar_group_call", menuIconFgOver }};
 	iconPosition: point(4px, 12px);
 }
+topBarAiChat: IconButton(topBarSearch) {
+	icon: icon {{ "top_bar_ai_chat", menuIconFg }};
+	iconOver: icon {{ "top_bar_ai_chat", menuIconFgOver }};
+}
+topBarAiChatActive: icon {{ "top_bar_ai_chat", windowActiveTextFg }};
 topBarInfo: IconButton(topBarSearch) {
 	icon: icon {{ "top_bar_profile", menuIconFg }};
 	iconOver: icon {{ "top_bar_profile", menuIconFgOver }};

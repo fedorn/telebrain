@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/click_handler_types.h"
 #include "settings/cloud_password/settings_cloud_password_input.h"
 #include "settings/settings_advanced.h"
+#include "settings/settings_ai.h"
 #include "settings/settings_business.h"
 #include "settings/settings_calls.h"
 #include "settings/settings_chat.h"
@@ -649,6 +650,11 @@ void SetupSections(
 		tr::lng_settings_section_chat_settings(),
 		Chat::Id(),
 		{ &st::menuIconChatBubble });
+
+	addSection(
+		tr::lng_settings_ai(),
+		AI::Id(),
+		{ &st::menuIconManage });
 
 	const auto preload = [=] {
 		controller->session().data().chatsFilters().requestSuggested();

@@ -229,6 +229,7 @@ public:
 
 	void hide();
 	void show();
+	void setAIChatMode();
 
 	[[nodiscard]] rpl::producer<bool> lockShowStarts() const;
 	[[nodiscard]] bool isLockPresent() const;
@@ -444,6 +445,7 @@ private:
 	bool _isInlineBot = false;
 	bool _botCommandShown = false;
 	bool _likeShown = false;
+	bool _aiChatMode = false;
 	Webrtc::RecordAvailability _recordAvailability = {};
 
 	FullMsgId _editingId;

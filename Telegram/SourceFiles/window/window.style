@@ -22,6 +22,8 @@ columnMaximalWidthLeft: 540px;
 columnMinimalWidthMain: 380px;
 columnMinimalWidthThird: 292px;
 columnMaximalWidthThird: 392px;
+columnMinimalWidthAIChat: 200px;
+columnMaximalWidthAIChat: 600px;
 
 adaptiveChatWideWidth: 880px;
 

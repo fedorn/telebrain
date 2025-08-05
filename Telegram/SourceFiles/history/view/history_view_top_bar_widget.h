@@ -113,6 +113,9 @@ public:
 	[[nodiscard]] rpl::producer<> chooseFromUserRequest() const {
 		return _chooseFromUserRequests.events();
 	}
+	[[nodiscard]] rpl::producer<> aiChatToggleRequest() const {
+		return _aiChatToggleRequests.events();
+	}
 	[[nodiscard]] rpl::producer<> searchRequest() const;
 
 	void setGeometryWithNarrowRatio(
@@ -139,10 +142,12 @@ private:
 	void updateControlsGeometry();
 	void slideAnimationCallback();
 	void updateInfoToggleActive();
+	void updateAiChatToggleActive();
 	void setupDragOnBackButton();
 
 	void call();
 	void groupCall();
+	void toggleAiChat();
 	void showGroupCallMenu(not_null<PeerData*> peer);
 	void toggleInfoSection();
 
@@ -220,6 +225,7 @@ private:
 	rpl::event_stream<> _searchSubmitted;
 	rpl::event_stream<> _jumpToDateRequests;
 	rpl::event_stream<> _chooseFromUserRequests;
+	rpl::event_stream<> _aiChatToggleRequests;
 
 	object_ptr<Ui::IconButton> _back;
 	object_ptr<Ui::IconButton> _cancelChoose;
@@ -228,6 +234,7 @@ private:
 
 	object_ptr<Ui::IconButton> _call;
 	object_ptr<Ui::IconButton> _groupCall;
+	object_ptr<Ui::IconButton> _aiChat;
 	object_ptr<Ui::IconButton> _search;
 	object_ptr<Ui::IconButton> _infoToggle;
 	object_ptr<Ui::IconButton> _menuToggle;

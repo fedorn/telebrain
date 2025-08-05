@@ -92,6 +92,10 @@ namespace Core {
 class Changelogs;
 } // namespace Core
 
+namespace AI {
+class AIChatWidget;
+} // namespace AI
+
 class MainWidget final
 	: public Ui::RpWidget
 	, private Media::Player::FloatDelegate {
@@ -304,6 +308,7 @@ private:
 		FinishCallback &&finishCallback);
 	void ensureFirstColumnResizeAreaCreated();
 	void ensureThirdColumnResizeAreaCreated();
+	void ensureAIChatResizeAreaCreated();
 
 	bool isReadyChatBackground(
 		const Data::WallPaper &background,
@@ -328,12 +333,14 @@ private:
 
 	int _dialogsWidth = 0;
 	int _thirdColumnWidth = 0;
+	int _aiChatWidth = 0;
 	Ui::Animations::Simple _a_dialogsWidth;
 
 	const base::unique_qptr<Dialogs::Widget> _dialogs;
 	const base::unique_qptr<HistoryWidget> _history;
 	object_ptr<Window::SectionWidget> _mainSection = { nullptr };
 	object_ptr<Window::SectionWidget> _thirdSection = { nullptr };
+	object_ptr<AI::AIChatWidget> _aiChat = { nullptr };
 	std::shared_ptr<Window::SectionMemento> _thirdSectionFromStack;
 	std::unique_ptr<Window::ConnectionState> _connecting;
 
@@ -341,6 +348,7 @@ private:
 	object_ptr<Ui::PlainShadow> _thirdShadow = { nullptr };
 	object_ptr<Ui::ResizeArea> _firstColumnResizeArea = { nullptr };
 	object_ptr<Ui::ResizeArea> _thirdColumnResizeArea = { nullptr };
+	object_ptr<Ui::ResizeArea> _aiChatResizeArea = { nullptr };
 
 	base::weak_ptr<Calls::Call> _currentCall;
 	base::weak_ptr<Calls::GroupCall> _currentGroupCall;

@@ -1603,7 +1603,8 @@ void ComposeControls::orderControls() {
 }
 
 bool ComposeControls::showRecordButton() const {
-	return (_recordAvailability != Webrtc::RecordAvailability::None)
+	return !_aiChatMode
+		&& (_recordAvailability != Webrtc::RecordAvailability::None)
 		&& !_voiceRecordBar->isListenState()
 		&& !_voiceRecordBar->isRecordingByAnotherBar()
 		&& !HasSendText(_field)
@@ -2686,11 +2687,11 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 	// (_attachDocument|_attachPhoto) _field (_ttlInfo) (_scheduled) (_silent|_botCommandStart) _tabbedSelectorToggle _send
 
 	const auto fieldWidth = size.width()
-		- _attachToggle->width()
+		- (_aiChatMode ? 0 : _attachToggle->width())
 		- (_sendAs ? _sendAs->width() : 0)
 		- st::historySendRight
 		- _send->width()
-		- _tabbedSelectorToggle->width()
+		- (_aiChatMode ? 0 : _tabbedSelectorToggle->width())
 		- (_likeShown ? _like->width() : 0)
 		- (_botCommandShown ? _botCommandStart->width() : 0)
 		- (_silent ? _silent->width() : 0)
@@ -2712,8 +2713,10 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 	if (_replaceMedia) {
 		_replaceMedia->moveToLeft(left, buttonsTop);
 	}
-	_attachToggle->moveToLeft(left, buttonsTop);
-	left += _attachToggle->width();
+	if (!_aiChatMode) {
+		_attachToggle->moveToLeft(left, buttonsTop);
+		left += _attachToggle->width();
+	}
 	if (_sendAs) {
 		_sendAs->moveToLeft(left, buttonsTop);
 		left += _sendAs->width();
@@ -2730,8 +2733,10 @@ void ComposeControls::updateControlsGeometry(QSize size) {
 	auto right = st::historySendRight;
 	_send->moveToRight(right, buttonsTop);
 	right += _send->width();
-	_tabbedSelectorToggle->moveToRight(right, buttonsTop);
-	right += _tabbedSelectorToggle->width();
+	if (!_aiChatMode) {
+		_tabbedSelectorToggle->moveToRight(right, buttonsTop);
+		right += _tabbedSelectorToggle->width();
+	}
 	if (_like) {
 		using Type = Controls::WriteRestrictionType;
 		if (_writeRestriction.current().type == Type::PremiumRequired) {
@@ -2789,6 +2794,14 @@ void ComposeControls::updateControlsVisibility() {
 	if (_scheduled) {
 		_scheduled->setVisible(!isEditingMessage());
 	}
+}
+
+void ComposeControls::setAIChatMode() {
+	_aiChatMode = true;
+	_attachToggle->hide();
+	_tabbedSelectorToggle->hide();
+	updateControlsGeometry(_wrap->size());
+	updateSendButtonType();
 }
 
 bool ComposeControls::updateLikeShown() {

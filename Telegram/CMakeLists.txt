@@ -99,6 +99,10 @@ nice_target_sources(Telegram ${src_loc}
 PRIVATE
     ${style_files}
 
+    ai/ai_chat_widget.cpp
+    ai/ai_chat_widget.h
+    ai/openai_client.cpp
+    ai/openai_client.h
     api/api_attached_stickers.cpp
     api/api_attached_stickers.h
     api/api_authorizations.cpp
@@ -1479,6 +1483,8 @@ PRIVATE
     settings/settings_active_sessions.h
     settings/settings_advanced.cpp
     settings/settings_advanced.h
+    settings/settings_ai.cpp
+    settings/settings_ai.h
     settings/settings_blocked_peers.cpp
     settings/settings_blocked_peers.h
     settings/settings_business.cpp

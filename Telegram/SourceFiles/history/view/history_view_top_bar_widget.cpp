@@ -121,6 +121,7 @@ TopBarWidget::TopBarWidget(
 , _cancelChoose(this, st::topBarCloseChoose)
 , _call(this, st::topBarCall)
 , _groupCall(this, st::topBarGroupCall)
+, _aiChat(this, st::topBarAiChat)
 , _search(this, st::topBarSearch)
 , _infoToggle(this, st::topBarInfo)
 , _menuToggle(this, st::topBarMenuToggle)
@@ -142,6 +143,7 @@ TopBarWidget::TopBarWidget(
 	_clear->setClickedCallback([=] { _clearSelection.fire({}); });
 	_call->setClickedCallback([=] { call(); });
 	_groupCall->setClickedCallback([=] { groupCall(); });
+	_aiChat->setClickedCallback([=] { toggleAiChat(); });
 	_menuToggle->setClickedCallback([=] { showPeerMenu(); });
 	_infoToggle->setClickedCallback([=] { toggleInfoSection(); });
 	_back->setAcceptBoth();
@@ -226,9 +228,11 @@ TopBarWidget::TopBarWidget(
 
 	rpl::combine(
 		Core::App().settings().thirdSectionInfoEnabledValue(),
-		Core::App().settings().tabbedReplacedWithInfoValue()
+		Core::App().settings().tabbedReplacedWithInfoValue(),
+		Core::App().settings().aiChatEnabledValue()
 	) | rpl::start_with_next([=] {
 		updateInfoToggleActive();
+		updateAiChatToggleActive();
 	}, lifetime());
 
 	Core::App().settings().proxy().connectionTypeValue(
@@ -294,6 +298,16 @@ void TopBarWidget::groupCall() {
 			_controller->startOrJoinGroupCall(peer, {});
 		}
 	}
+}
+
+void TopBarWidget::toggleAiChat() {
+	if (_controller->showFrozenError()) {
+		return;
+	}
+	// Toggle AI chat visibility through settings
+	const auto enabled = Core::App().settings().aiChatEnabled();
+	Core::App().settings().setAiChatEnabled(!enabled);
+	Core::App().saveSettingsDelayed();
 }
 
 void TopBarWidget::showChooseMessagesForReport(Data::ReportInput input) {
@@ -1092,6 +1106,10 @@ void TopBarWidget::updateControlsGeometry() {
 		_groupCall->moveToRight(_rightTaken, otherButtonsTop);
 		_rightTaken += _call->width();
 	}
+	_aiChat->moveToRight(_rightTaken, otherButtonsTop);
+	if (!_aiChat->isHidden()) {
+		_rightTaken += _aiChat->width();
+	}
 	_search->moveToRight(_rightTaken, otherButtonsTop);
 	if (!_search->isHidden()) {
 		_rightTaken += _search->width() + st::topBarCallSkip;
@@ -1237,6 +1255,9 @@ void TopBarWidget::updateControlsVisibility() {
 	}();
 	_groupCall->setVisible(historyMode
 		&& groupCallsEnabled
+		&& !_chooseForReportReason);
+	_aiChat->setVisible((historyMode || section == Section::Replies)
+		&& !isOneColumn
 		&& !_chooseForReportReason);
 
 	if (_membersShowArea) {
@@ -1538,6 +1559,7 @@ void TopBarWidget::slideAnimationCallback() {
 void TopBarWidget::updateAdaptiveLayout() {
 	updateControlsVisibility();
 	updateInfoToggleActive();
+	updateAiChatToggleActive();
 	refreshUnreadBadge();
 }
 
@@ -1597,6 +1619,18 @@ void TopBarWidget::updateInfoToggleActive() {
 		: nullptr;
 	_infoToggle->setIconOverride(iconOverride, iconOverride);
 	_infoToggle->setRippleColorOverride(rippleOverride);
+}
+
+void TopBarWidget::updateAiChatToggleActive() {
+	auto aiChatActive = Core::App().settings().aiChatEnabled();
+	auto iconOverride = aiChatActive
+		? &st::topBarAiChatActive
+		: nullptr;
+	auto rippleOverride = aiChatActive
+		? &st::lightButtonBgOver
+		: nullptr;
+	_aiChat->setIconOverride(iconOverride, iconOverride);
+	_aiChat->setRippleColorOverride(rippleOverride);
 }
 
 void TopBarWidget::setupDragOnBackButton() {

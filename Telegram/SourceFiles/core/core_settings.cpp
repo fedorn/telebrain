@@ -241,6 +241,9 @@ QByteArray Settings::serialize() const {
 		+ sizeof(qint32) * 3
 		+ Serialize::bytearraySize(_tonsiteStorageToken)
 		+ sizeof(qint32) * 8;
+	size += Serialize::stringSize(_aiChatBaseUrl.current())
+		+ Serialize::stringSize(_aiChatApiKey.current())
+		+ Serialize::stringSize(_aiChatModel.current());
 
 	auto result = QByteArray();
 	result.reserve(size);
@@ -402,7 +405,10 @@ QByteArray Settings::serialize() const {
 			<< SerializeVideoQuality(_videoQuality)
 			<< qint32(_ivZoom.current())
 			<< qint32(_systemDarkModeEnabled.current() ? 1 : 0)
-			<< qint32(_quickDialogAction);
+			<< qint32(_quickDialogAction)
+			<< _aiChatBaseUrl.current()
+			<< _aiChatApiKey.current()
+			<< _aiChatModel.current();
 	}
 
 	Ensures(result.size() == size);
@@ -863,6 +869,21 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	if (!stream.atEnd()) {
 		stream >> quickDialogAction;
 	}
+	if (!stream.atEnd()) {
+		QString aiChatBaseUrl;
+		stream >> aiChatBaseUrl;
+		_aiChatBaseUrl = aiChatBaseUrl;
+	}
+	if (!stream.atEnd()) {
+		QString aiChatApiKey;
+		stream >> aiChatApiKey;
+		_aiChatApiKey = aiChatApiKey;
+	}
+	if (!stream.atEnd()) {
+		QString aiChatModel;
+		stream >> aiChatModel;
+		_aiChatModel = aiChatModel;
+	}
 	if (stream.status() != QDataStream::Ok) {
 		LOG(("App Error: "
 			"Bad data for Core::Settings::constructFromSerialized()"));
@@ -1202,6 +1223,18 @@ rpl::producer<int> Settings::thirdColumnWidthChanges() const {
 	return _thirdColumnWidth.changes();
 }
 
+void Settings::setAIChatWidth(int width) {
+	_aiChatWidth = width;
+}
+
+int Settings::aiChatWidth() const {
+	return _aiChatWidth.current();
+}
+
+rpl::producer<int> Settings::aiChatWidthChanges() const {
+	return _aiChatWidth.changes();
+}
+
 const std::vector<RecentEmoji> &Settings::recentEmoji() const {
 	if (!_recentEmojiResolved) {
 		_recentEmojiResolved = true;
@@ -1467,6 +1500,7 @@ void Settings::resetOnLastLogout() {
 	_dialogsWithChatWidthRatio = DefaultDialogsWidthRatio(); // per-window
 	_dialogsNoChatWidthRatio = DefaultDialogsWidthRatio(); // per-window
 	_thirdColumnWidth = kDefaultThirdColumnWidth; // p-w
+	_aiChatWidth = kDefaultAIChatWidth; // per-window
 	_notifyFromAll = true;
 	_tabbedReplacedWithInfo = false; // per-window
 	_hiddenGroupCallTooltips = 0;
@@ -1670,6 +1704,58 @@ Dialogs::Ui::QuickDialogAction Settings::quickDialogAction() const {
 
 void Settings::setQuickDialogAction(Dialogs::Ui::QuickDialogAction action) {
 	_quickDialogAction = action;
+}
+
+bool Settings::aiChatEnabled() const {
+	return _aiChatEnabled;
+}
+
+void Settings::setAiChatEnabled(bool enabled) {
+	if (_aiChatEnabled != enabled) {
+		_aiChatEnabled = enabled;
+		_aiChatEnabledValue.fire_copy(enabled);
+	}
+}
+
+rpl::producer<bool> Settings::aiChatEnabledValue() const {
+	return _aiChatEnabledValue.events_starting_with(
+		aiChatEnabled());
+}
+
+QString Settings::aiChatBaseUrl() const {
+	return _aiChatBaseUrl.current();
+}
+
+void Settings::setAiChatBaseUrl(const QString &baseUrl) {
+	_aiChatBaseUrl = baseUrl;
+}
+
+rpl::producer<QString> Settings::aiChatBaseUrlValue() const {
+	return _aiChatBaseUrl.value();
+}
+
+QString Settings::aiChatApiKey() const {
+	return _aiChatApiKey.current();
+}
+
+void Settings::setAiChatApiKey(const QString &apiKey) {
+	_aiChatApiKey = apiKey;
+}
+
+rpl::producer<QString> Settings::aiChatApiKeyValue() const {
+	return _aiChatApiKey.value();
+}
+
+QString Settings::aiChatModel() const {
+	return _aiChatModel.current();
+}
+
+void Settings::setAiChatModel(const QString &model) {
+	_aiChatModel = model;
+}
+
+rpl::producer<QString> Settings::aiChatModelValue() const {
+	return _aiChatModel.value();
 }
 
 } // namespace Core

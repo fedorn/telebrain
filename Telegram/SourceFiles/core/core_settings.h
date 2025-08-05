@@ -652,6 +652,9 @@ public:
 	void setThirdColumnWidth(int width);
 	[[nodiscard]] int thirdColumnWidth() const;
 	[[nodiscard]] rpl::producer<int> thirdColumnWidthChanges() const;
+	void setAIChatWidth(int width);
+	[[nodiscard]] int aiChatWidth() const;
+	[[nodiscard]] rpl::producer<int> aiChatWidthChanges() const;
 	void setNotifyFromAll(bool value) {
 		_notifyFromAll = value;
 	}
@@ -952,12 +955,29 @@ public:
 
 	void resetOnLastLogout();
 
+	[[nodiscard]] bool aiChatEnabled() const;
+	void setAiChatEnabled(bool enabled);
+	[[nodiscard]] rpl::producer<bool> aiChatEnabledValue() const;
+
+	[[nodiscard]] QString aiChatBaseUrl() const;
+	void setAiChatBaseUrl(const QString &baseUrl);
+	[[nodiscard]] rpl::producer<QString> aiChatBaseUrlValue() const;
+
+	[[nodiscard]] QString aiChatApiKey() const;
+	void setAiChatApiKey(const QString &apiKey);
+	[[nodiscard]] rpl::producer<QString> aiChatApiKeyValue() const;
+
+	[[nodiscard]] QString aiChatModel() const;
+	void setAiChatModel(const QString &model);
+	[[nodiscard]] rpl::producer<QString> aiChatModelValue() const;
+
 private:
 	void resolveRecentEmoji() const;
 
 	static constexpr auto kDefaultThirdColumnWidth = 0;
 	static constexpr auto kDefaultDialogsWidthRatio = 5. / 14;
 	static constexpr auto kDefaultBigDialogsWidthRatio = 0.275;
+	static constexpr auto kDefaultAIChatWidth = 350;
 
 	struct RecentEmojiPreload {
 		QString emoji;
@@ -1032,10 +1052,16 @@ private:
 	RectPart _floatPlayerCorner = RectPart(); // per-window
 	bool _thirdSectionInfoEnabled = true; // per-window
 	rpl::event_stream<bool> _thirdSectionInfoEnabledValue; // per-window
+	bool _aiChatEnabled = true;
+	rpl::event_stream<bool> _aiChatEnabledValue;
+	rpl::variable<QString> _aiChatBaseUrl = QString("https://api.openai.com/v1");
+	rpl::variable<QString> _aiChatApiKey;
+	rpl::variable<QString> _aiChatModel = QString("gpt-4.1");
 	int _thirdSectionExtendedBy = -1; // per-window
 	rpl::variable<float64> _dialogsWithChatWidthRatio; // per-window
 	rpl::variable<float64> _dialogsNoChatWidthRatio; // per-window
 	rpl::variable<int> _thirdColumnWidth = kDefaultThirdColumnWidth; // p-w
+	rpl::variable<int> _aiChatWidth = kDefaultAIChatWidth; // per-window
 	bool _notifyFromAll = true;
 	rpl::variable<bool> _nativeWindowFrame = false;
 	rpl::variable<std::optional<bool>> _systemDarkMode = std::nullopt;
