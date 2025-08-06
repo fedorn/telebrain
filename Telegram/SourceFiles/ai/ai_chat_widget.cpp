@@ -5,6 +5,7 @@ For license and copyright information please follow this link:
 https://github.com/fedorn/telebrain/blob/dev/LEGAL
 */
 #include "ai/ai_chat_widget.h"
+#include "ai/ai_contstants.h"
 
 #include "window/section_widget.h"
 #include "window/window_session_controller.h"
@@ -39,16 +40,11 @@ https://github.com/fedorn/telebrain/blob/dev/LEGAL
 #include <QtCore/QTimer>
 #include <QtCore/QDateTime>
 #include <QtCore/QObject>
-#include <set>
 
 namespace AI {
 
 // AI Chat background color
 const QColor kAIChatBackgroundColor(241, 241, 241);
-
-// Welcome message constant
-const QString kWelcomeMessage = u"Hello! I'm your AI assistant. I'm here to help you with any questions or tasks you might have."_q;
-
 class MessagesWidget : public Ui::RpWidget {
 public:
 	MessagesWidget(
@@ -1057,14 +1053,14 @@ void AIChatWidget::sendToOpenAI() {
 	}
 
 	// Add a "thinking" message to show the user that the AI is processing
-	addAIMessage(u"🤔 Thinking..."_q);
+	addAIMessage(kThinkingMessage);
 
 	// Send the request using the OpenAI client
 	_openaiClient->sendChatCompletion(
 		_messages,
 		[this](const QString &response) {
 			// Replace the "thinking" message with the actual response
-			if (!_messages.empty() && _messages.back().text == u"🤔 Thinking..."_q) {
+			if (!_messages.empty() && _messages.back().text == kThinkingMessage) {
 				_messages.back().text = response;
 				_messagesWidget->setMessages(_messages);
 				// Scroll to bottom to show the full response
@@ -1076,7 +1072,7 @@ void AIChatWidget::sendToOpenAI() {
 		},
 		[this](const QString &error) {
 			// Replace the "thinking" message with the error
-			if (!_messages.empty() && _messages.back().text == u"🤔 Thinking..."_q) {
+			if (!_messages.empty() && _messages.back().text == kThinkingMessage) {
 				QString errorMessage = QString("❌ Error: %1").arg(error);
 				_messages.back().text = errorMessage;
 				_messagesWidget->setMessages(_messages);

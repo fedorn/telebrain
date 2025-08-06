@@ -5,6 +5,7 @@ For license and copyright information please follow this link:
 https://github.com/fedorn/telebrain/blob/dev/LEGAL
 */
 #include "ai/openai_client.h"
+#include "ai/ai_contstants.h"
 
 #include "window/window_session_controller.h"
 #include "main/main_session.h"
@@ -24,7 +25,6 @@ https://github.com/fedorn/telebrain/blob/dev/LEGAL
 #include <QtCore/QProcessEnvironment>
 #include <QtCore/QDateTime>
 #include <QtCore/QByteArray>
-#include <vector>
 
 namespace AI {
 
@@ -79,10 +79,10 @@ void OpenAIClient::sendChatCompletion(
 	request.setRawHeader("Authorization", QString("Bearer %1").arg(_openaiApiKey).toUtf8());
 	request.setTransferTimeout(30000); // 30 second timeout
 
-	// Prepare messages with system message
+	// Prepare messages with system message and conversation
 	QJsonArray messagesArray;
 	
-	// Add system message
+	// Add system message for context
 	messagesArray.append(QJsonObject{
 		{"role", "system"},
 		{"content", prepareSystemMessage()}
@@ -93,8 +93,8 @@ void OpenAIClient::sendChatCompletion(
 	const int startIndex = std::max(0, static_cast<int>(messages.size()) - maxHistory);
 	for (int i = startIndex; i < static_cast<int>(messages.size()); ++i) {
 		const auto &msg = messages[i];
-		// Skip the "thinking" message
-		if (msg.text == u"🤔 Thinking..."_q) {
+		// Skip the "thinking" message and the initial assistant greeting
+		if (msg.text == kThinkingMessage || msg.text == kWelcomeMessage) {
 			continue;
 		}
 		messagesArray.append(QJsonObject{
@@ -285,27 +285,6 @@ QString OpenAIClient::getChatContext() const {
 	}
 	
 	return QString();
-}
-
-QJsonArray OpenAIClient::messagesToOpenAIFormat(const std::vector<MessageData> &messages) const {
-	QJsonArray result;
-	
-	// Add conversation messages (last 10 to avoid token limits)
-	const int maxHistory = 10;
-	const int startIndex = std::max(0, static_cast<int>(messages.size()) - maxHistory);
-	for (int i = startIndex; i < static_cast<int>(messages.size()); ++i) {
-		const auto &msg = messages[i];
-		// Skip the "thinking" message
-		if (msg.text == u"🤔 Thinking..."_q) {
-			continue;
-		}
-		result.append(QJsonObject{
-			{"role", msg.isFromUser ? "user" : "assistant"},
-			{"content", msg.text}
-		});
-	}
-	
-	return result;
 }
 
 QJsonObject OpenAIClient::createRequestBody(const QJsonArray &messages) const {

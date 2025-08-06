@@ -10,6 +10,12 @@ The source code is published under GPLv3 with OpenSSL exception, the license is 
 
 ![config](https://github.com/user-attachments/assets/4e165bba-bab1-4d1e-a8b1-f3d560bed7b8)
 
+### Tested endpoints (Base URL) and models
+
+- OpenAI - default: `https://api.openai.com/v1`, models `gpt-4.1` (default), `gpt-4o` - requires API key
+- Anthropic: `https://api.anthropic.com/v1`, model `claude-sonnet-4-20250514` - requires API key
+- LM Studio: `http://localhost:1234/v1`, model `google/gemma-3-12b` - doesn't require API key
+
 ## Third-party
 
 * Qt 6 ([LGPL](http://doc.qt.io/qt-6/lgpl.html)) and Qt 5.15 ([LGPL](http://doc.qt.io/qt-5/lgpl.html)) slightly patched

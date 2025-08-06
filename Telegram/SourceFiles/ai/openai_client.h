@@ -61,10 +61,7 @@ private:
 	
 	// Get chat context from the current active chat
 	QString getChatContext() const;
-	
-	// Convert messages to OpenAI format
-	QJsonArray messagesToOpenAIFormat(const std::vector<MessageData> &messages) const;
-	
+		
 	// Create the request body
 	QJsonObject createRequestBody(const QJsonArray &messages) const;
 

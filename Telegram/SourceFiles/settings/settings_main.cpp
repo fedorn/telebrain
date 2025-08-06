@@ -651,11 +651,6 @@ void SetupSections(
 		Chat::Id(),
 		{ &st::menuIconChatBubble });
 
-	addSection(
-		tr::lng_settings_ai(),
-		AI::Id(),
-		{ &st::menuIconManage });
-
 	const auto preload = [=] {
 		controller->session().data().chatsFilters().requestSuggested();
 	};
@@ -710,6 +705,11 @@ void SetupSections(
 
 	SetupPowerSavingButton(&controller->window(), container);
 	SetupLanguageButton(&controller->window(), container);
+
+	addSection(
+		tr::lng_settings_ai(),
+		AI::Id(),
+		{ &st::menuIconManage });
 
 	Ui::AddSkip(container);
 }
