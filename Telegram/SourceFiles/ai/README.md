@@ -4,7 +4,7 @@ This module provides AI chat functionality for Telebrain using OpenAI's Completi
 
 ## Features
 
-- Real-time chat with OpenAI's GPT-4.1 model
+- Real-time chat with OpenAI's GPT-4.1 model or any other Completions API-compatible model.
 - Conversation history management with context awareness
 - Error handling and user feedback
 - Loading indicators ("🤔 Thinking..." state)
