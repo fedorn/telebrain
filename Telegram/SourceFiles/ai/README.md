@@ -60,7 +60,6 @@ public:
         std::function<void(const QString &)> onError);
     
     bool isWaitingForResponse() const;
-    void setApiKey(const QString &apiKey);
     void setSessionController(not_null<Window::SessionController*> controller);
 };
 ```

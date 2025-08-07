@@ -35,10 +35,6 @@ OpenAIClient::OpenAIClient(QObject *parent)
 
 OpenAIClient::~OpenAIClient() = default;
 
-void OpenAIClient::setApiKey(const QString &apiKey) {
-	_openaiApiKey = apiKey;
-}
-
 void OpenAIClient::setSessionController(not_null<Window::SessionController*> controller) {
 	_sessionController = controller.get();
 }
@@ -52,16 +48,6 @@ void OpenAIClient::sendChatCompletion(
 		onError("Already waiting for a response. Please wait for the current request to complete.");
 		return;
 	}
-
-	// Get API key from settings
-	if (_openaiApiKey.isEmpty()) {
-		_openaiApiKey = Core::App().settings().aiChatApiKey();
-		if (_openaiApiKey.isEmpty()) {
-			onError("OpenAI API key not found. Please configure it in Settings > Telebrain.");
-			return;
-		}
-	}
-
 	// Store callbacks
 	_onSuccess = std::move(onSuccess);
 	_onError = std::move(onError);
@@ -72,11 +58,15 @@ void OpenAIClient::sendChatCompletion(
 	if (baseUrl.isEmpty()) {
 		baseUrl = "https://api.openai.com/v1";
 	}
+	// Get API key from settings
+	QString openaiApiKey = Core::App().settings().aiChatApiKey();
 	
 	// Prepare the request
 	QNetworkRequest request(QUrl(baseUrl + "/chat/completions"));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-	request.setRawHeader("Authorization", QString("Bearer %1").arg(_openaiApiKey).toUtf8());
+	if (!openaiApiKey.isEmpty()) {
+		request.setRawHeader("Authorization", QString("Bearer %1").arg(openaiApiKey).toUtf8());
+	}
 	request.setTransferTimeout(30000); // 30 second timeout
 
 	// Prepare messages with system message and conversation

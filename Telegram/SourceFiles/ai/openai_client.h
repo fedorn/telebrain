@@ -35,9 +35,6 @@ class OpenAIClient : public QObject {
 public:
 	explicit OpenAIClient(QObject *parent = nullptr);
 	~OpenAIClient();
-
-	// Set the API key (can be called multiple times)
-	void setApiKey(const QString &apiKey);
 	
 	// Set the session controller for context
 	void setSessionController(not_null<Window::SessionController*> controller);
@@ -66,7 +63,6 @@ private:
 	QJsonObject createRequestBody(const QJsonArray &messages) const;
 
 	std::unique_ptr<QNetworkAccessManager> _networkManager;
-	QString _openaiApiKey;
 	bool _isWaitingForResponse = false;
 	
 	// Callbacks for the current request
