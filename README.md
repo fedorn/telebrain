@@ -13,8 +13,9 @@ The source code is published under GPLv3 with OpenSSL exception, the license is 
 ### Tested endpoints (Base URL) and models
 
 - OpenAI - default: `https://api.openai.com/v1`, models `gpt-4.1` (default), `gpt-4o` - requires API key
-- Anthropic: `https://api.anthropic.com/v1`, model `claude-sonnet-4-20250514` - requires API key
-- LM Studio: `http://localhost:1234/v1`, model `google/gemma-3-12b` - doesn't require API key
+- Anthropic: `https://api.anthropic.com/v1`, models `claude-sonnet-4-20250514`, `claude-opus-4-1-20250805` - requires API key
+- DeepSeek: `https://api.deepseek.com`, models `deepseek-chat`, `deepseek-reasoner` - requires API key
+- LM Studio: `http://localhost:1234/v1`, model `google/gemma-3-12b`, `openai/gpt-oss-20b` (prints reasoning tokens without proper formatting) - doesn't require API key
 
 ## Third-party
 
