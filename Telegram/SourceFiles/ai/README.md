@@ -35,6 +35,7 @@ The AI chat widget is automatically included in the Telegram Desktop build when 
 
 - `ai_chat_widget.cpp` / `ai_chat_widget.h` - Main UI components
 - `openai_client.cpp` / `openai_client.h` - OpenAI API integration
+- `ai_constants.h` - constants used
 
 ## Usage
 
