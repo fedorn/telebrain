@@ -1,6 +1,6 @@
 # AI Chat Widget
 
-This module provides AI chat functionality for Telebrain using OpenAI's GPT API.
+This module provides AI chat functionality for Telebrain using OpenAI's Completions API-compatible LLM API.
 
 ## Features
 
