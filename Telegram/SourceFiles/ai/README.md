@@ -42,13 +42,13 @@ The AI chat widget is automatically included in the Telegram Desktop build when 
 1. Launch Telegram Desktop
 2. Navigate to the AI chat section
 3. Type your message and press Enter
-4. The AI will respond using OpenAI's GPT model with context from your current chat
+4. The AI will respond using LLM model with context from your current chat
 
 ## Implementation Details
 
 ### OpenAIClient Class
 
-The `OpenAIClient` class handles all OpenAI API interactions:
+The `OpenAIClient` class handles all OpenAI's Completions API interactions:
 
 ```cpp
 class OpenAIClient : public QObject {
@@ -75,7 +75,7 @@ public:
 
 The widget uses OpenAI's Chat Completions API (`/v1/chat/completions`) with the following features:
 
-- **Model**: GPT-4.1
+- **Model**: By default GPT-4.1
 - **Conversation History**: Last 100 messages to manage token limits
 - **System Message**: Includes user information and chat context
 - **Timeout**: 30-second request timeout
@@ -131,25 +131,11 @@ The widget handles various error scenarios:
 - Subject to OpenAI API rate limits
 - Conversation history limited to last 100 messages for token management
 - Maximum response length depends on OpenAI model limits
-- Requires valid OpenAI API key
 
-## Development
-
-### Adding New Features
-
-1. **UI Changes**: Modify `AIChatWidget` or `MessagesWidget`
-2. **API Changes**: Modify `OpenAIClient`
-3. **New Models**: Update `createRequestBody()` in `OpenAIClient`
-
-### Testing
+## Testing
 
 The module can be tested by:
 1. Compiling and running Telebrain
 2. Configuring LLM API endpoint, key, and model in Settings → Telebrain
 3. Navigating to the AI chat section
 4. Sending test messages
-
-### Debugging
-
-- Check console output for API errors
-- Verify LLM endpoint settings in Settings → Telebrain
