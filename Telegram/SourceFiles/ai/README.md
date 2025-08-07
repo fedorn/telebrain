@@ -84,7 +84,7 @@ The widget uses OpenAI's Chat Completions API (`/v1/chat/completions`) with the 
 The AI assistant receives context about:
 
 1. **User Information**: Name and username from Telegram
-2. **Chat Context**: Last 100 messages from the current active chat
+2. **Chat Context**: Last 30 messages from the current active chat
 3. **Conversation History**: Previous AI chat messages
 
 ### Error Handling
@@ -143,14 +143,12 @@ The widget handles various error scenarios:
 ### Testing
 
 The module can be tested by:
-1. Setting the `OPENAI_API_KEY` environment variable
-2. Compiling and running Telegram Desktop
+1. Compiling and running Telebrain
+2. Configuring LLM API endpoint, key, and model in Settings → Telebrain
 3. Navigating to the AI chat section
 4. Sending test messages
 
 ### Debugging
 
 - Check console output for API errors
-- Verify environment variable is set correctly
-- Monitor network requests in browser dev tools
-- Check Qt debug output for UI issues 
+- Verify LLM endpoint settings in Settings → Telebrain
