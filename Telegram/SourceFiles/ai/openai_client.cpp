@@ -67,7 +67,7 @@ void OpenAIClient::sendChatCompletion(
 	if (!openaiApiKey.isEmpty()) {
 		request.setRawHeader("Authorization", QString("Bearer %1").arg(openaiApiKey).toUtf8());
 	}
-	request.setTransferTimeout(30000); // 30 second timeout
+	request.setTransferTimeout(60000); // 60 second timeout
 
 	// Prepare messages with system message and conversation
 	QJsonArray messagesArray;
@@ -280,10 +280,10 @@ QString OpenAIClient::getChatContext() const {
 QJsonObject OpenAIClient::createRequestBody(const QJsonArray &messages) const {
 	QJsonObject requestBody;
 	
-	// Get model from settings, default to gpt-4.1 if not set
+	// Get model from settings, default to gpt-5 if not set
 	QString model = Core::App().settings().aiChatModel();
 	if (model.isEmpty()) {
-		model = "gpt-4.1";
+		model = "gpt-5";
 	}
 	
 	requestBody["model"] = model;
