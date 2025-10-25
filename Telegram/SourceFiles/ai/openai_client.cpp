@@ -184,7 +184,7 @@ void OpenAIClient::handleNetworkError(QNetworkReply::NetworkError error, const Q
 }
 
 QString OpenAIClient::prepareSystemMessage() const {
-	QString systemMessage = "You are a helpful AI assistant integrated into Telegram Desktop. Keep your responses concise and helpful.";
+	QString systemMessage = "You are Telebrain — the AI Copilot integrated into Telegram Desktop. Be concise, helpful, and context-aware. Use the conversation context when relevant, ask clarifying questions when information is missing, and avoid fabricating Telegram data you cannot access.";
 	
 	// Add current date
 	QString currentDate = QDateTime::currentDateTime().toString("MMMM d, yyyy");
@@ -201,7 +201,7 @@ QString OpenAIClient::prepareSystemMessage() const {
 		if (!userUsername.isEmpty()) {
 			userInfo += QString("- Username: @%1\n").arg(userUsername);
 		}
-		userInfo += "- You are talking to this user through the Telegram Desktop AI chat feature.\n";
+		userInfo += "- You are chatting in Telebrain (AI Copilot for Telegram Desktop).\n";
 		userInfo += "- The user is asking you questions and seeking assistance.\n";
 		
 		systemMessage += userInfo;
