@@ -1,6 +1,6 @@
 # Telebrain - Telegram Desktop with AI Copilot
 
-This is the complete source code and the build instructions for the Telebrain messenger desktop client, based on the official [Telegram][telegram] messenger desktop client.
+Telebrain is a fork of Telegram Desktop with an integrated AI Copilot that brings powerful AI assistance directly into your Telegram experience. Chat with AI in the context of your conversations to get contextually-aware responses. The Completions API endpoint is fully configurable, allowing you to connect to most cloud LLM providers (OpenAI, Anthropic, DeepSeek) or run against a local model (via LM Studio or similar). This repository contains the complete source code and build instructions, based on the official [Telegram][telegram] messenger desktop client.
 
 ![aznavour](https://github.com/user-attachments/assets/cd143ba4-9f68-49b4-a5cc-22bc8249a710)
 
