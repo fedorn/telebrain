@@ -17,7 +17,7 @@ Install [poetry](https://python-poetry.org), go to ***BuildPath*** and run
 
 ### Building the project
 
-Go to ***BuildPath*/tdesktop** and run (using [your **api_id** and **api_hash**](#obtain-your-api-credentials))
+Go to ***BuildPath*/telebrain** and run (using [your **api_id** and **api_hash**](#obtain-your-api-credentials))
 
     docker run --rm -it \
         -u $(id -u) \
