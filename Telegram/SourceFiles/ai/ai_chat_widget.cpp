@@ -664,7 +664,7 @@ private:
 		if (selection.empty()) {
 			// Use the from position as the cursor position
 			const auto position = selection.from;
-			if (position < 0 || position > text.length()) {
+			if (position > text.length()) {
 				return TextSelection();
 			}
 			
@@ -709,7 +709,7 @@ private:
 		if (selection.empty()) {
 			// Use the from position as the cursor position
 			const auto position = selection.from;
-			if (position < 0 || position > text.length()) {
+			if (position > text.length()) {
 				return TextSelection();
 			}
 			
