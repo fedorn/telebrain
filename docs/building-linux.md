@@ -22,7 +22,7 @@ Go to ***BuildPath*/telebrain** and run (using [your **api_id** and **api_hash**
     docker run --rm -it \
         -u $(id -u) \
         -v "$PWD:/usr/src/telebrain" \
-        tdesktop:centos_env \
+        telebrain:centos_env \
         /usr/src/telebrain/Telegram/build/docker/centos_env/build.sh \
         -D TDESKTOP_API_ID=YOUR_API_ID \
         -D TDESKTOP_API_HASH=YOUR_API_HASH
@@ -33,7 +33,7 @@ Or, to create a debug build, run (also using [your **api_id** and **api_hash**](
         -u $(id -u) \
         -v "$PWD:/usr/src/telebrain" \
         -e CONFIG=Debug \
-        tdesktop:centos_env \
+        telebrain:centos_env \
         /usr/src/telebrain/Telegram/build/docker/centos_env/build.sh \
         -D TDESKTOP_API_ID=YOUR_API_ID \
         -D TDESKTOP_API_HASH=YOUR_API_HASH

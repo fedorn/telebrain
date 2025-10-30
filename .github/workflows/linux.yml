@@ -55,7 +55,7 @@ jobs:
     env:
       UPLOAD_ARTIFACT: "true"
       ONLY_CACHE: "false"
-      IMAGE_TAG: tdesktop:centos_env
+      IMAGE_TAG: telebrain:centos_env
 
     steps:
       - name: Clone.
@@ -115,10 +115,10 @@ jobs:
 
           docker run --rm \
           -u $(id -u) \
-          -v $PWD:/usr/src/tdesktop \
+          -v $PWD:/usr/src/telebrain \
           -e CONFIG=Debug \
           $IMAGE_TAG \
-          /usr/src/tdesktop/Telegram/build/docker/centos_env/build.sh \
+          /usr/src/telebrain/Telegram/build/docker/centos_env/build.sh \
           -D CMAKE_CONFIGURATION_TYPES=Debug \
           -D CMAKE_C_FLAGS_DEBUG="-O0" \
           -D CMAKE_CXX_FLAGS_DEBUG="-O0" \
