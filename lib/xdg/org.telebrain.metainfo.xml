@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <component type="desktop">
-    <id>org.telegram.desktop</id>
+    <id>org.telebrain</id>
     <metadata_license>CC0-1.0</metadata_license>
     <project_license>GPL-3.0</project_license>
-    <name>Telegram</name>
+    <name>Telebrain</name>
     <summary>New era of messaging</summary>
     <description>
         <p>Pure instant messaging — simple, fast, secure, and synced across all your devices. One of the world's top 10 most downloaded apps with over 500 million active users.</p>
@@ -56,7 +56,7 @@
     <keywords>
         <keyword>tg</keyword>
         <keyword>telegram</keyword>
-        <keyword>tdesktop</keyword>
+        <keyword>telebrain</keyword>
         <keyword>messaging</keyword>
         <keyword>messenger</keyword>
         <keyword>chat</keyword>
@@ -104,10 +104,10 @@
         <content_attribute id="money-gambling">none</content_attribute>
         <content_attribute id="money-advertising">moderate</content_attribute>
     </content_rating>
-    <launchable type="desktop-id">org.telegram.desktop.desktop</launchable>
+    <launchable type="desktop-id">org.telebrain.desktop</launchable>
     <provides>
         <binary>Telegram</binary>
-        <dbus type="session">org.telegram.desktop</dbus>
+        <dbus type="session">org.telebrain</dbus>
         <mediatype>x-scheme-handler/tg</mediatype>
         <mediatype>x-scheme-handler/tonsite</mediatype>
     </provides>
