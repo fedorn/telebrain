@@ -39,6 +39,7 @@ private:
 	bool handleHideWorkaround(QOpenGLFunctions &f);
 
 	void paintBackground() override;
+	void paintVideoStream() override;
 	void paintTransformedVideoFrame(ContentGeometry geometry) override;
 	void paintTransformedStaticContent(
 		const QImage &image,
@@ -74,6 +75,11 @@ private:
 		const QImage &image,
 		QRect rect,
 		float64 opacity = 1.) override;
+
+	void paintRecognitionOverlay(
+		const QImage &image,
+		ContentGeometry geometry,
+		float64 opacity);
 
 	//void invalidate();
 
@@ -145,7 +151,7 @@ private:
 	static constexpr auto kStoriesSiblingPartsCount = 4;
 	Ui::GL::Image _storiesSiblingParts[kStoriesSiblingPartsCount];
 
-	static constexpr auto kControlsCount = 6;
+	static constexpr auto kControlsCount = 7;
 	[[nodiscard]] Control controlMeta(Over control) const;
 
 	// Last one is for the over circle image.

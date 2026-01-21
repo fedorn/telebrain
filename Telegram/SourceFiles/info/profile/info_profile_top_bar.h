@@ -82,6 +82,8 @@ namespace Info::Profile {
 class Badge;
 class StatusLabel;
 
+struct TopBarActionButtonStyle;
+
 class TopBar final : public Ui::RpWidget {
 public:
 	enum class Source {
@@ -96,7 +98,7 @@ public:
 		rpl::producer<Wrap> wrap;
 		Source source = Source::Profile;
 		PeerData *peer = nullptr;
-		rpl::variable<bool> backToggles;
+		rpl::producer<bool> backToggles;
 		rpl::producer<> showFinished;
 	};
 
@@ -110,18 +112,15 @@ public:
 	TopBar(not_null<Ui::RpWidget*> parent, Descriptor descriptor);
 	~TopBar();
 
+	[[nodiscard]] rpl::producer<> backRequest() const;
+
 	void setOnlineCount(rpl::producer<int> &&count);
 
 	void setRoundEdges(bool value);
 	void setLottieSingleLoop(bool value);
-	void setEnableBackButtonValue(rpl::producer<bool> &&producer);
 	void setColorProfileIndex(std::optional<uint8> index);
 	void setPatternEmojiId(std::optional<DocumentId> patternEmojiId);
 	void setLocalEmojiStatusId(EmojiStatusId emojiStatusId);
-	void addTopBarMenuButton(
-		not_null<Window::SessionController*> controller,
-		Wrap wrap,
-		bool shouldUseColored);
 	void addTopBarEditButton(
 		not_null<Window::SessionController*> controller,
 		Wrap wrap,
@@ -140,13 +139,14 @@ private:
 	[[nodiscard]] int titleMostLeft() const;
 	[[nodiscard]] int statusMostLeft() const;
 	[[nodiscard]] QRect userpicGeometry() const;
-	void updateUserpicButtonGeometry();
 	void updateGiftButtonsGeometry(
 		float64 progressCurrent,
 		const QRect &userpicRect);
 	void paintUserpic(QPainter &p, const QRect &geometry);
 	void updateVideoUserpic();
-	void showTopBarMenu(not_null<Window::SessionController*> controller, bool check);
+	void showTopBarMenu(
+		not_null<Window::SessionController*> controller,
+		bool check);
 	void fillTopBarMenu(
 		not_null<Window::SessionController*> controller,
 		const Ui::Menu::MenuCallback &addAction);
@@ -154,7 +154,6 @@ private:
 	void setupActions(not_null<Window::SessionController*> controller);
 	void setupButtons(
 		not_null<Window::SessionController*> controller,
-		rpl::producer<bool> backToggles,
 		Source source);
 	void setupShowLastSeen(not_null<Window::SessionController*> controller);
 	void setupUniqueBadgeTooltip();
@@ -164,11 +163,11 @@ private:
 		QPainter &p,
 		const QRect &rect,
 		const QRect &userpicGeometry);
-	void setupPinnedToTopGifts(not_null<Window::SessionController*> controller);
+	void setupPinnedToTopGifts(
+		not_null<Window::SessionController*> controller);
 	void setupNewGifts(
 		not_null<Window::SessionController*> controller,
 		const std::vector<Data::SavedStarGift> &gifts);
-	void setupGiftButtons(not_null<Window::SessionController*> controller);
 	void paintPinnedToTopGifts(
 		QPainter &p,
 		const QRect &rect,
@@ -179,13 +178,17 @@ private:
 		const QRect &userpicRect) const;
 	void adjustColors(const std::optional<QColor> &edgeColor);
 	void updateCollectibleStatus();
-	void updateBadgeContent();
 	void setupStoryOutline(const QRect &geometry = QRect());
 	void updateStoryOutline(std::optional<QColor> edgeColor);
 	void paintStoryOutline(QPainter &p, const QRect &geometry);
 	void updateStatusPosition(float64 progressCurrent);
+	[[nodiscard]] int calculateRightButtonsWidth() const;
 	[[nodiscard]] const style::FlatLabel &statusStyle() const;
 	void setupStatusWithRating();
+	[[nodiscard]] TopBarActionButtonStyle mapActionStyle(
+		std::optional<QColor> c) const;
+
+	[[nodiscard]] rpl::producer<QString> nameValue() const;
 
 	[[nodiscard]] auto effectiveColorProfile()
 	const -> std::optional<Data::ColorProfileSet>;
@@ -219,6 +222,7 @@ private:
 	std::unique_ptr<StatusLabel> _statusLabel;
 	rpl::variable<int> _statusShift = 0;
 	object_ptr<Ui::RoundButton> _showLastSeen = { nullptr };
+	object_ptr<Ui::RoundButton> _forumButton = { nullptr };
 	QGraphicsOpacityEffect *_showLastSeenOpacity = nullptr;
 
 	std::shared_ptr<style::FlatLabel> _statusSt;
@@ -240,22 +244,26 @@ private:
 	std::vector<AnimatedPatternPoint> _animatedPoints;
 	QRect _lastUserpicRect;
 
+	base::unique_qptr<Ui::AbstractButton> _userpicButton;
+
 	Ui::PeerUserpicView _userpicView;
 	InMemoryKey _userpicUniqueKey;
 	QImage _cachedUserpic;
 	QImage _monoforumMask;
 	std::unique_ptr<Ui::VideoUserpicPlayer> _videoUserpicPlayer;
 	std::unique_ptr<TopicIconView> _topicIconView;
+	rpl::lifetime _userpicLoadingLifetime;
 
 	base::unique_qptr<Ui::IconButton> _close;
 	base::unique_qptr<Ui::FadeWrap<Ui::IconButton>> _back;
+	rpl::variable<bool> _backToggles;
+
+	rpl::event_stream<> _backClicks;
 
 	base::unique_qptr<Ui::IconButton> _topBarButton;
 	base::unique_qptr<Ui::PopupMenu> _peerMenu;
 
 	Ui::RpWidget *_actionMore = nullptr;
-
-	base::unique_qptr<Ui::AbstractButton> _userpicButton;
 
 	base::unique_qptr<Ui::HorizontalFitContainer> _actions;
 
@@ -280,6 +288,7 @@ private:
 	QBrush _storyOutlineBrush;
 	std::vector<Ui::OutlineSegment> _storySegments;
 	bool _hasStories = false;
+	bool _hasLiveStories = false;
 
 	std::optional<uint8> _localColorProfileIndex;
 	std::optional<DocumentId> _localPatternEmojiId;

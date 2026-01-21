@@ -56,6 +56,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/path_shift_gradient.h"
 #include "ui/effects/premium_graphics.h"
 #include "ui/layers/generic_box.h"
+#include "ui/new_badges.h"
 #include "ui/peer/color_sample.h"
 #include "ui/text/text_utilities.h"
 #include "ui/widgets/buttons.h"
@@ -95,10 +96,7 @@ base::unique_qptr<Ui::RpWidget> CreateEmptyPlaceholder(
 		container,
 		{
 			.name = u"my_gifts_empty"_q,
-			.sizeOverride = {
-				st::changePhoneIconSize,
-				st::changePhoneIconSize,
-			},
+			.sizeOverride = st::normalBoxLottieSize,
 		},
 		st::settingsBlockedListIconPadding);
 	const auto iconWidget = icon.widget.data();
@@ -119,13 +117,7 @@ base::unique_qptr<Ui::RpWidget> CreateEmptyPlaceholder(
 			tr::lng_gift_stars_tabs_my_empty_next(
 				lt_emoji,
 				rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
-				TextWithEntities::Simple
-			) | rpl::map([](TextWithEntities t) {
-				return Ui::Text::Wrapped(
-					std::move(t),
-					EntityType::Url,
-					u"internal:"_q);
-			}),
+				tr::link),
 			st::giftBoxGiftEmptyLabel)
 		: nullptr;
 	if (emptyNextLabel) {
@@ -150,7 +142,7 @@ base::unique_qptr<Ui::RpWidget> CreateEmptyPlaceholder(
 	container->resize(width, totalHeight);
 
 	container->sizeValue(
-	) | rpl::start_with_next([=](QSize size) {
+	) | rpl::on_next([=](QSize size) {
 		const auto totalContentHeight = iconWidget->height()
 			+ st::normalFont->height + emptyLabel->height()
 			+ (emptyNextLabel
@@ -321,17 +313,17 @@ PreviewWrap::PreviewWrap(
 	_style->apply(_theme.get());
 
 	_fake->setName(peer->name(), QString());
-	std::move(colorIndexValue) | rpl::start_with_next([=](uint8 index) {
+	std::move(colorIndexValue) | rpl::on_next([=](uint8 index) {
 		if (index != kUnsetColorIndex) {
 			_fake->changeColorIndex(index);
 			update();
 		}
 	}, lifetime());
-	std::move(backgroundEmojiId) | rpl::start_with_next([=](DocumentId id) {
+	std::move(backgroundEmojiId) | rpl::on_next([=](DocumentId id) {
 		_fake->changeBackgroundEmojiId(id);
 		update();
 	}, lifetime());
-	std::move(colorCollectible) | rpl::start_with_next([=](
+	std::move(colorCollectible) | rpl::on_next([=](
 			std::optional<Ui::ColorCollectible> &&collectible) {
 		if (collectible) {
 			_fake->changeColorCollectible(std::move(*collectible));
@@ -343,8 +335,8 @@ PreviewWrap::PreviewWrap(
 
 	const auto session = &_history->session();
 	session->data().viewRepaintRequest(
-	) | rpl::start_with_next([=](not_null<const Element*> view) {
-		if (view == _element.get()) {
+	) | rpl::on_next([=](Data::RequestViewRepaint data) {
+		if (data.view == _element.get()) {
 			update();
 		}
 	}, lifetime());
@@ -371,6 +363,7 @@ void PreviewWrap::paintEvent(QPaintEvent *e) {
 
 	auto context = _theme->preparePaintContext(
 		_style.get(),
+		rect(),
 		rect(),
 		clip,
 		!window()->isActiveWindow());
@@ -399,7 +392,7 @@ void PreviewWrap::initElements() {
 	widthValue(
 	) | rpl::filter([=](int width) {
 		return width > st::msgMinWidth;
-	}) | rpl::start_with_next([=](int width) {
+	}) | rpl::on_next([=](int width) {
 		const auto height = _position.y()
 			+ _element->resizeGetHeight(width)
 			+ st::msgMargin.top();
@@ -444,7 +437,7 @@ void LevelBadge::updateText() {
 			tr::now,
 			lt_count,
 			_level,
-			Ui::Text::WithEntities));
+			tr::marked));
 	} else {
 		text.append(QString::number(_level));
 	}
@@ -523,11 +516,6 @@ void Set(
 			} else {
 				peer->changeColorProfileIndex(index);
 			}
-			if (colorCollectible) {
-				peer->changeColorCollectible(*colorCollectible);
-			} else {
-				peer->clearColorCollectible();
-			}
 			peer->changeProfileBackgroundEmojiId(emojiId);
 		} else {
 			if (index == kUnsetColorIndex) {
@@ -544,8 +532,10 @@ void Set(
 		}
 		peer->session().changes().peerUpdated(
 			peer,
-			(values.forProfile ? UpdateFlag::ColorProfile : UpdateFlag::Color)
-				| UpdateFlag::BackgroundEmoji);
+			(UpdateFlag::BackgroundEmoji
+				| (values.forProfile
+					? UpdateFlag::ColorProfile
+					: UpdateFlag::Color)));
 	};
 	setLocal(
 		values.colorIndex,
@@ -581,27 +571,39 @@ void Set(
 		using Flag = MTPaccount_UpdateColor::Flag;
 		using ColorFlag = MTPDpeerColor::Flag;
 		send(MTPaccount_UpdateColor(
-			MTP_flags(Flag::f_color
-				| (values.forProfile ? Flag::f_for_profile : Flag(0))),
-			(values.colorCollectible
+			MTP_flags((values.forProfile ? Flag::f_for_profile : Flag(0))
+				| (((!values.forProfile && values.colorCollectible)
+					|| (values.colorIndex != kUnsetColorIndex))
+					? Flag::f_color
+					: Flag(0))),
+			((!values.forProfile && values.colorCollectible)
 				? MTP_inputPeerColorCollectible(
 					MTP_long(values.colorCollectible->collectibleId))
 				: MTP_peerColor(
 					MTP_flags(ColorFlag()
 						| ColorFlag::f_color
-						| (values.backgroundEmojiId || !values.forProfile
+						| (values.backgroundEmojiId
 							? ColorFlag::f_background_emoji_id
 							: ColorFlag(0))),
 					MTP_int(values.colorIndex),
 					MTP_long(values.backgroundEmojiId)))));
+		if (values.statusChanged
+			&& (values.statusId || peer->emojiStatusId())) {
+			peer->owner().emojiStatuses().set(
+				peer,
+				values.statusId,
+				values.statusUntil);
+		}
 	} else if (const auto channel = peer->asChannel()) {
 		if (peer->isBroadcast()) {
 			using Flag = MTPchannels_UpdateColor::Flag;
 			send(MTPchannels_UpdateColor(
-				MTP_flags(Flag::f_color
+				MTP_flags((values.colorIndex != kUnsetColorIndex
+						? Flag::f_color
+						: Flag(0))
 					| Flag::f_background_emoji_id
 					| (values.forProfile ? Flag::f_for_profile : Flag(0))),
-				channel->inputChannel,
+				channel->inputChannel(),
 				MTP_int(values.colorIndex),
 				MTP_long(values.backgroundEmojiId)));
 		}
@@ -646,10 +648,10 @@ void Apply(
 
 	const auto colorMatch = (currentColorIndex == values.colorIndex);
 	const auto emojiMatch = (currentEmojiId == values.backgroundEmojiId);
-	const auto collectibleMatch = (!peer->colorCollectible()
-			== !values.colorCollectible)
-		&& (!peer->colorCollectible()
-			|| (*peer->colorCollectible() == *values.colorCollectible));
+	const auto collectibleMatch = values.forProfile
+		|| ((!peer->colorCollectible() == !values.colorCollectible)
+			&& (!peer->colorCollectible()
+				|| (*peer->colorCollectible() == *values.colorCollectible)));
 
 	if (colorMatch
 		&& emojiMatch
@@ -748,11 +750,11 @@ void Apply(
 	};
 	const auto state = right->lifetime().make_state<State>();
 	state->panel.someCustomChosen(
-	) | rpl::start_with_next([=](EmojiStatusPanel::CustomChosen chosen) {
+	) | rpl::on_next([=](EmojiStatusPanel::CustomChosen chosen) {
 		emojiIdChosen(chosen.id.documentId);
 	}, raw->lifetime());
 
-	std::move(colorIndexValue) | rpl::start_with_next([=](uint8 index) {
+	std::move(colorIndexValue) | rpl::on_next([=](uint8 index) {
 		state->index = index;
 		if (state->emoji) {
 			right->update();
@@ -760,8 +762,8 @@ void Apply(
 	}, right->lifetime());
 
 	const auto session = &show->session();
-	const auto added = st::normalFont->spacew;
-	std::move(emojiIdValue) | rpl::start_with_next([=](DocumentId emojiId) {
+	const auto added = st::lineWidth * 2;
+	std::move(emojiIdValue) | rpl::on_next([=](DocumentId emojiId) {
 		state->emojiId = emojiId;
 		state->emoji = emojiId
 			? session->data().customEmojiManager().create(
@@ -777,26 +779,29 @@ void Apply(
 	rpl::combine(
 		raw->sizeValue(),
 		right->widthValue()
-	) | rpl::start_with_next([=](QSize outer, int width) {
+	) | rpl::on_next([=](QSize outer, int width) {
 		right->resize(width, outer.height());
 		const auto skip = st::settingsButton.padding.right();
 		right->moveToRight(skip - button.added, 0, outer.width());
 	}, right->lifetime());
 
 	right->paintRequest(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		if (state->panel.paintBadgeFrame(right)) {
 			return;
 		}
 		auto p = QPainter(right);
 		const auto height = right->height();
-		if (state->emoji && state->index != kUnsetColorIndex) {
+		if (state->emoji
+			&& (state->index != kUnsetColorIndex || profileIndices)) {
 			const auto profileSet = profileIndices
 				? peer->session().api().peerColors().colorProfileFor(
 					state->index)
 				: std::nullopt;
 			const auto textColor = profileSet && !profileSet->palette.empty()
 				? profileSet->palette.front()
+				: profileIndices
+				? style->windowActiveTextFg()->c
 				: style->coloredValues(false, state->index).name;
 			state->emoji->paint(p, {
 				.textColor = textColor,
@@ -889,12 +894,12 @@ void Apply(
 	};
 	const auto state = right->lifetime().make_state<State>();
 	state->panel.someCustomChosen(
-	) | rpl::start_with_next([=](EmojiStatusPanel::CustomChosen chosen) {
+	) | rpl::on_next([=](EmojiStatusPanel::CustomChosen chosen) {
 		statusIdChosen({ chosen.id }, chosen.until);
 	}, raw->lifetime());
 
 	const auto session = &show->session();
-	std::move(statusIdValue) | rpl::start_with_next([=](EmojiStatusId id) {
+	std::move(statusIdValue) | rpl::on_next([=](EmojiStatusId id) {
 		state->statusId = id;
 		state->emoji = id
 			? session->data().customEmojiManager().create(
@@ -910,14 +915,14 @@ void Apply(
 	rpl::combine(
 		raw->sizeValue(),
 		right->widthValue()
-	) | rpl::start_with_next([=](QSize outer, int width) {
+	) | rpl::on_next([=](QSize outer, int width) {
 		right->resize(width, outer.height());
 		const auto skip = st::settingsButton.padding.right();
 		right->moveToRight(skip - button.added, 0, outer.width());
 	}, right->lifetime());
 
 	right->paintRequest(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		if (state->panel.paintBadgeFrame(right)) {
 			return;
 		}
@@ -1003,7 +1008,7 @@ void Apply(
 	rpl::combine(
 		raw->sizeValue(),
 		right->widthValue()
-	) | rpl::start_with_next([=](QSize outer, int width) {
+	) | rpl::on_next([=](QSize outer, int width) {
 		right->resize(width, outer.height());
 		const auto skip = st::settingsButton.padding.right();
 		right->moveToRight(skip - button.added, 0, outer.width());
@@ -1012,7 +1017,7 @@ void Apply(
 	right->paintRequest(
 	) | rpl::filter([=] {
 		return state->icon != nullptr;
-	}) | rpl::start_with_next([=] {
+	}) | rpl::on_next([=] {
 		auto p = QPainter(right);
 		const auto x = button.added;
 		const auto y = (right->height() - button.emojiWidth) / 2;
@@ -1072,7 +1077,7 @@ void Apply(
 			return wrapLoaded(sets->find(id));
 		}));
 	}) | rpl::flatten_latest(
-	) | rpl::start_with_next([=](DocumentData *icon) {
+	) | rpl::on_next([=](DocumentData *icon) {
 		if (state->icon != icon) {
 			state->icon = icon;
 			state->custom = nullptr;
@@ -1107,7 +1112,7 @@ Fn<void()> AddColorGiftTabs(
 	GiftsStars(
 		session,
 		session->user()
-	) | rpl::start_with_next([=](const std::vector<GiftTypeStars> &list) {
+	) | rpl::on_next([=](const std::vector<GiftTypeStars> &list) {
 		auto filtered = std::vector<Data::StarGift>();
 		for (const auto &gift : list) {
 			if ((profile || gift.info.peerColorAvailable) && gift.resale) {
@@ -1118,11 +1123,11 @@ Fn<void()> AddColorGiftTabs(
 	}, container->lifetime());
 
 	state->list.value(
-	) | rpl::start_with_next([=](const std::vector<Data::StarGift> &list) {
+	) | rpl::on_next([=](const std::vector<Data::StarGift> &list) {
 		auto tabs = std::vector<Ui::SubTabs::Tab>();
 		tabs.push_back({
 			.id = u"my"_q,
-			.text = tr::lng_gift_stars_tabs_my(tr::now, Ui::Text::WithEntities),
+			.text = tr::lng_gift_stars_tabs_my(tr::now, tr::marked),
 		});
 		for (const auto &gift : list) {
 			auto text = TextWithEntities();
@@ -1148,7 +1153,7 @@ Fn<void()> AddColorGiftTabs(
 					context));
 
 			state->tabs->activated(
-			) | rpl::start_with_next([=](const QString &id) {
+			) | rpl::on_next([=](const QString &id) {
 				state->tabs->setActiveTab(id);
 				chosen(id.toULongLong());
 			}, state->tabs->lifetime());
@@ -1157,7 +1162,7 @@ Fn<void()> AddColorGiftTabs(
 		}
 		container->resizeToWidth(container->width());
 	}, container->lifetime());
-	
+
 	return [=]() {
 		const auto &list = state->list.current();
 		if (!list.empty()) {
@@ -1174,7 +1179,7 @@ void AddGiftSelector(
 		not_null<Main::Session*> session,
 		rpl::producer<uint64> showingGiftIdValue,
 		Fn<void(std::shared_ptr<Data::UniqueGift> selected)> chosen,
-		rpl::producer<std::optional<Ui::ColorCollectible>> selected,
+		rpl::producer<uint64> selected,
 		bool profile,
 		rpl::producer<uint64> selectedGiftId = rpl::single(uint64(0)),
 		Fn<void()> switchToNextTab = nullptr) {
@@ -1197,7 +1202,7 @@ void AddGiftSelector(
 		std::vector<bool> validated;
 		std::vector<std::unique_ptr<GiftButton>> buttons;
 		rpl::variable<Ui::VisibleRange> visibleRange;
-		rpl::variable<std::optional<Ui::ColorCollectible>> selected;
+		rpl::variable<uint64> selected;
 		rpl::variable<uint64> selectedGiftId;
 		int perRow = 1;
 		base::unique_qptr<Ui::RpWidget> emptyPlaceholder;
@@ -1224,7 +1229,7 @@ void AddGiftSelector(
 				shownGiftId,
 				{},
 				state->current->offset
-			) | rpl::start_with_next([=](Data::ResaleGiftsDescriptor slice) {
+			) | rpl::on_next([=](Data::ResaleGiftsDescriptor slice) {
 				auto &entry = state->lists[shownGiftId];
 				entry.loading.destroy();
 				entry.offset = slice.offset;
@@ -1250,7 +1255,7 @@ void AddGiftSelector(
 				session,
 				Data::MyUniqueType::OwnedAndHosted,
 				state->current->offset
-			) | rpl::start_with_next([=](Data::MyGiftsDescriptor slice) {
+			) | rpl::on_next([=](Data::MyGiftsDescriptor slice) {
 				auto &entry = state->lists[shownGiftId];
 				entry.loading.destroy();
 				entry.offset = slice.offset;
@@ -1297,8 +1302,7 @@ void AddGiftSelector(
 		Assert(rowTill >= rowFrom);
 		const auto first = rowFrom * perRow;
 		const auto last = std::min(rowTill * perRow, count);
-		const auto current = state->selected.current();
-		const auto selectedCollectibleId = current ? current->collectibleId : 0;
+		const auto selectedCollectibleId = state->selected.current();
 		const auto selectedGiftId = state->selectedGiftId.current();
 		auto checkedFrom = 0;
 		auto checkedTill = int(buttons.size());
@@ -1390,11 +1394,9 @@ void AddGiftSelector(
 		};
 
 		state->selected.value(
-		) | rpl::combine_previous() | rpl::start_with_next([=](
-				const std::optional<Ui::ColorCollectible> &was,
-				const std::optional<Ui::ColorCollectible> &now) {
-			const auto wasCollectibleId = was ? was->collectibleId : 0;
-			const auto nowCollectibleId = now ? now->collectibleId : 0;
+		) | rpl::combine_previous() | rpl::on_next([=](
+				uint64 wasCollectibleId,
+				uint64 nowCollectibleId) {
 			if (wasCollectibleId) {
 				if (const auto button = find(wasCollectibleId)) {
 					button->toggleSelected(false, GiftSelectionMode::Inset);
@@ -1408,7 +1410,7 @@ void AddGiftSelector(
 		}, raw->lifetime());
 
 		state->selectedGiftId.value(
-		) | rpl::combine_previous() | rpl::start_with_next([=](
+		) | rpl::combine_previous() | rpl::on_next([=](
 				uint64 wasGiftId,
 				uint64 nowGiftId) {
 			if (wasGiftId) {
@@ -1464,7 +1466,7 @@ void AddGiftSelector(
 	};
 
 	state->showingGiftId.value(
-	) | rpl::start_with_next([=](uint64 showingId) {
+	) | rpl::on_next([=](uint64 showingId) {
 		state->current = &state->lists[showingId];
 		state->buttons.clear();
 		if (state->emptyPlaceholder) {
@@ -1478,7 +1480,7 @@ void AddGiftSelector(
 
 	state->visibleRange = raw->visibleRange();
 	state->visibleRange.value(
-	) | rpl::start_with_next(state->rebuild, raw->lifetime());
+	) | rpl::on_next(state->rebuild, raw->lifetime());
 }
 
 Fn<void(int)> CreateTabsWidget(
@@ -1543,7 +1545,7 @@ Fn<void(int)> CreateTabsWidget(
 
 	const auto penWidth = st::lineWidth * 2;
 
-	tabsContainer->paintRequest() | rpl::start_with_next([=] {
+	tabsContainer->paintRequest() | rpl::on_next([=] {
 		auto p = QPainter(tabsContainer);
 		auto hq = PainterHighQualityEnabler(p);
 		const auto r = tabsContainer->rect();
@@ -1611,6 +1613,7 @@ not_null<Info::Profile::TopBar*> CreateProfilePreview(
 	preview->resize(
 		container->width(),
 		st::infoProfileTopBarNoActionsHeightMax);
+	preview->setAttribute(Qt::WA_TransparentForMouseEvents);
 	return preview;
 }
 
@@ -1637,14 +1640,14 @@ void CreateBoostLevelContainer(
 	};
 	const auto state = boostLevelContainer->lifetime().make_state<State>();
 
-	boostLevelContainer->paintRequest() | rpl::start_with_next([=] {
+	boostLevelContainer->paintRequest() | rpl::on_next([=] {
 		auto p = QPainter(boostLevelContainer);
 		const auto bg = state->currentColor.value_or(st::boxDividerBg->c);
 		p.fillRect(boostLevelContainer->rect(), bg);
 		p.fillRect(boostLevelContainer->rect(), st::shadowFg);
 	}, boostLevelContainer->lifetime());
 
-	std::move(colorProducer) | rpl::start_with_next([=](
+	std::move(colorProducer) | rpl::on_next([=](
 			std::optional<QColor> color) {
 		const auto colorChanged = (state->currentColor != color)
 			|| !state->label;
@@ -1666,11 +1669,11 @@ void CreateBoostLevelContainer(
 						using namespace Ui::Text;
 						return Link(std::move(t), u"internal:"_q);
 					}),
-					Ui::Text::RichLangValue),
+					tr::rich),
 				style);
 			state->label->show();
 			boostLevelContainer->sizeValue(
-			) | rpl::start_with_next([=](QSize s) {
+			) | rpl::on_next([=](QSize s) {
 				state->label->moveToLeft(
 					(s.width() - state->label->width()) / 2,
 					(s.height() - state->label->height()) / 2);
@@ -1705,7 +1708,7 @@ void AddLevelBadge(
 	rpl::combine(
 		button->sizeValue(),
 		std::move(text)
-	) | rpl::start_with_next([=](const QSize &s, const QString &) {
+	) | rpl::on_next([=](const QSize &s, const QString &) {
 		if (s.isNull()) {
 			return;
 		}
@@ -1769,7 +1772,7 @@ void EditPeerColorSection(
 			state->preview->setPatternEmojiId(
 				state->profileEmojiId.current());
 		}
-		state->statusId.value() | rpl::start_with_next([=](EmojiStatusId id) {
+		state->statusId.value() | rpl::on_next([=](EmojiStatusId id) {
 			state->preview->setLocalEmojiStatusId(std::move(id));
 		}, state->preview->lifetime());
 		const auto peerColors = &peer->session().api().peerColors();
@@ -1833,7 +1836,7 @@ void EditPeerColorSection(
 			true));
 
 		state->profileIndex.value(
-		) | rpl::start_with_next([=](uint8 index) {
+		) | rpl::on_next([=](uint8 index) {
 			selector->updateSelection(index);
 		}, selector->lifetime());
 
@@ -2057,7 +2060,10 @@ void EditPeerColorSection(
 					? *selected->peerColor
 					: std::optional<Ui::ColorCollectible>();
 			},
-			state->collectible.value(),
+			state->collectible.value() | rpl::map([](
+					const std::optional<Ui::ColorCollectible> &value) {
+				return value ? value->collectibleId : 0;
+			}),
 			false,
 			rpl::single(uint64(0)),
 			switchToNextTab);
@@ -2121,7 +2127,7 @@ void EditPeerColorSection(
 		}));
 	});
 	state->collectible.value(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		const auto buy = state->buyCollectible.get();
 		while (!button->children().isEmpty()) {
 			delete button->children().first();
@@ -2145,13 +2151,13 @@ void EditPeerColorSection(
 				tr::lng_gift_buy_resale_button(
 					lt_cost,
 					rpl::single(Data::FormatGiftResaleTon(*buy)),
-					Ui::Text::WithEntities),
+					tr::marked),
 				tr::lng_gift_buy_resale_equals(
 					lt_cost,
 					rpl::single(Ui::Text::IconEmoji(
 						&st::starIconEmojiSmall
 					).append(Lang::FormatCountDecimal(buy->starsForResale))),
-					Ui::Text::WithEntities),
+					tr::marked),
 				st::resaleButtonTitle,
 				st::resaleButtonSubtitle);
 		} else {
@@ -2159,7 +2165,7 @@ void EditPeerColorSection(
 				lt_cost,
 				rpl::single(Ui::Text::IconEmoji(&st::starIconEmoji).append(
 					Lang::FormatCountDecimal(buy->starsForResale))),
-				Ui::Text::WithEntities));
+				tr::marked));
 		}
 	}, button->lifetime());
 }
@@ -2173,6 +2179,8 @@ void EditPeerProfileColorSection(
 		std::shared_ptr<Ui::ChatStyle> style,
 		std::shared_ptr<Ui::ChatTheme> theme,
 		Fn<void()> aboutCallback) {
+	Expects(peer->isSelf());
+
 	ProcessButton(button);
 
 	const auto preview = CreateProfilePreview(box, container, show, peer);
@@ -2183,7 +2191,7 @@ void EditPeerProfileColorSection(
 	struct State {
 		rpl::variable<uint8> index = kUnsetColorIndex;
 		rpl::variable<DocumentId> patternEmojiId;
-		rpl::variable<std::optional<Ui::ColorCollectible>> collectible;
+		rpl::variable<EmojiStatusId> wearable;
 		rpl::variable<uint64> showingGiftId;
 		rpl::variable<uint64> selectedGiftId;
 		std::shared_ptr<Data::UniqueGift> buyCollectible;
@@ -2191,23 +2199,25 @@ void EditPeerProfileColorSection(
 	};
 	const auto state = button->lifetime().make_state<State>();
 	state->patternEmojiId = peer->profileBackgroundEmojiId();
-	state->collectible = peer->colorCollectible()
-		? *peer->colorCollectible()
-		: std::optional<Ui::ColorCollectible>();
+	state->wearable = peer->emojiStatusId();
 
 	const auto resetUnique = [=] {
 		preview->setLocalEmojiStatusId({});
 		state->buyCollectible = nullptr;
-		state->collectible.force_assign(std::nullopt);
+		state->wearable = {};
 	};
 
 	const auto setIndex = [=](uint8 index) {
 		state->index = index;
+		if (index != kUnsetColorIndex) {
+			resetUnique();
+		}
 		preview->setColorProfileIndex(index == kUnsetColorIndex
 			? std::nullopt
 			: std::make_optional(index));
-		preview->setPatternEmojiId(state->patternEmojiId.current());
-		resetUnique();
+		preview->setPatternEmojiId(index == kUnsetColorIndex
+			? std::nullopt
+			: std::make_optional(state->patternEmojiId.current()));
 	};
 	setIndex(peer->colorProfileIndex().value_or(kUnsetColorIndex));
 
@@ -2273,11 +2283,11 @@ void EditPeerProfileColorSection(
 			tr::lng_settings_color_profile_about_link(
 				lt_emoji,
 				rpl::single(Ui::Text::IconEmoji(&st::textMoreIconEmoji)),
-				Ui::Text::RichLangValue
+				tr::rich
 			) | rpl::map([=](TextWithEntities t) {
-				return Ui::Text::Link(std::move(t), u"internal:"_q);
+				return tr::link(std::move(t), u"internal:"_q);
 			}),
-			Ui::Text::RichLangValue));
+			tr::rich));
 	Ui::AddSkip(container, st::settingsColorSampleSkip);
 	about->setClickHandlerFilter([=](auto...) {
 		aboutCallback();
@@ -2285,7 +2295,7 @@ void EditPeerProfileColorSection(
 	});
 
 	state->index.value(
-	) | rpl::start_with_next([=](uint8 index) {
+	) | rpl::on_next([=](uint8 index) {
 		if (state->selector) {
 			state->selector->updateSelection(index);
 		}
@@ -2315,17 +2325,16 @@ void EditPeerProfileColorSection(
 					&& selected->starsForResale > 0)
 					? selected
 					: nullptr;
-				state->collectible = selected->peerColor
-					? *selected->peerColor
-					: std::optional<Ui::ColorCollectible>();
+				const auto statuses = &peer->owner().emojiStatuses();
+				state->wearable = statuses->fromUniqueGift(*selected);
 				preview->setColorProfileIndex(std::nullopt);
 				preview->setPatternEmojiId(selected->pattern.document->id);
-				preview->setLocalEmojiStatusId(
-					session->data().emojiStatuses().fromUniqueGift(
-						*selected));
+				preview->setLocalEmojiStatusId(state->wearable.current());
 				resetWrap->toggle(true, anim::type::normal);
 			},
-			state->collectible.value(),
+			state->wearable.value() | rpl::map([=](const EmojiStatusId &value) {
+				return value.collectible ? value.collectible->id : 0;
+			}),
 			true,
 			state->selectedGiftId.value(),
 			switchToNextTab);
@@ -2342,13 +2351,19 @@ void EditPeerProfileColorSection(
 		} else if (ShowPremiumPreview(show, peer)) {
 			return;
 		}
+		const auto statusId = peer->emojiStatusId();
+		const auto wearable = state->wearable.current();
+		const auto statusChanged = wearable.collectible
+			? (!statusId.collectible
+				|| statusId.collectible->id != wearable.collectible->id)
+			: (statusId.collectible != nullptr);
 		const auto values = SetValues{
 			.colorIndex = state->index.current(),
 			.backgroundEmojiId = state->patternEmojiId.current(),
-			.colorCollectible = state->collectible.current(),
-			.statusId = {},
+			.colorCollectible = std::nullopt,
+			.statusId = state->wearable.current(),
 			.statusUntil = 0,
-			.statusChanged = false,
+			.statusChanged = statusChanged,
 			.forProfile = true,
 		};
 		if (const auto buy = state->buyCollectible) {
@@ -2371,15 +2386,17 @@ void EditPeerProfileColorSection(
 			profileState->applying = false;
 		}));
 	});
-	state->collectible.value(
-	) | rpl::start_with_next([=] {
+	state->wearable.value(
+	) | rpl::on_next([=](EmojiStatusId id) {
 		const auto buy = state->buyCollectible.get();
 		while (!button->children().isEmpty()) {
 			delete button->children().first();
 		}
 		if (!buy) {
 			button->setText(rpl::combine(
-				tr::lng_settings_color_apply(),
+				(id.collectible
+					? tr::lng_settings_color_wear()
+					: tr::lng_settings_color_apply()),
 				Data::AmPremiumValue(&peer->session())
 			) | rpl::map([=](const QString &text, bool premium) {
 				auto result = TextWithEntities();
@@ -2396,13 +2413,13 @@ void EditPeerProfileColorSection(
 				tr::lng_gift_buy_resale_button(
 					lt_cost,
 					rpl::single(Data::FormatGiftResaleTon(*buy)),
-					Ui::Text::WithEntities),
+					tr::marked),
 				tr::lng_gift_buy_resale_equals(
 					lt_cost,
 					rpl::single(Ui::Text::IconEmoji(
 						&st::starIconEmojiSmall
 					).append(Lang::FormatCountDecimal(buy->starsForResale))),
-					Ui::Text::WithEntities),
+					tr::marked),
 				st::resaleButtonTitle,
 				st::resaleButtonSubtitle);
 		} else {
@@ -2410,7 +2427,7 @@ void EditPeerProfileColorSection(
 				lt_cost,
 				rpl::single(Ui::Text::IconEmoji(&st::starIconEmoji).append(
 					Lang::FormatCountDecimal(buy->starsForResale))),
-				Ui::Text::WithEntities));
+				tr::marked));
 		}
 	}, button->lifetime());
 }
@@ -2453,7 +2470,7 @@ void EditPeerColorBox(
 		buttonContainer->widthValue(),
 		profileButton->sizeValue(),
 		nameButton->sizeValue()
-	) | rpl::start_with_next([=](int w, QSize, QSize) {
+	) | rpl::on_next([=](int w, QSize, QSize) {
 		profileButton->resizeToWidth(w);
 		nameButton->resizeToWidth(w);
 	}, buttonContainer->lifetime());
@@ -2529,7 +2546,21 @@ void SetupPeerColorSample(
 	) | rpl::map([=] {
 		return peer->colorCollectible();
 	});
+	auto colorProfileIndexValue = peer->session().changes().peerFlagsValue(
+		peer,
+		Data::PeerUpdate::Flag::ColorProfile
+	) | rpl::map([=] {
+		return peer->colorProfileIndex();
+	});
+	auto emojiStatusIdValue = peer->session().changes().peerFlagsValue(
+		peer,
+		Data::PeerUpdate::Flag::EmojiStatus
+	) | rpl::map([=] {
+		return peer->emojiStatusId();
+	});
 	const auto name = peer->shortName();
+
+	const auto sampleSize = st::settingsColorSampleSize;
 
 	const auto sample = Ui::CreateChild<Ui::ColorSample>(
 		button.get(),
@@ -2541,21 +2572,80 @@ void SetupPeerColorSample(
 		name);
 	sample->show();
 
+	struct ProfileSampleState {
+		Data::ColorProfileSet colorSet;
+	};
+	const auto profileState
+		= button->lifetime().make_state<ProfileSampleState>();
+
+	const auto profileSample = Ui::CreateChild<Ui::ColorSample>(
+		button.get(),
+		[=](uint8 index) { return profileState->colorSet; },
+		0,
+		false);
+	profileSample->hide();
+	profileSample->resize(sampleSize, sampleSize);
+
+	const auto emojiStatusWidget = Ui::CreateChild<Ui::RpWidget>(
+		button.get());
+	emojiStatusWidget->hide();
+	emojiStatusWidget->resize(sampleSize, sampleSize);
+	button->lifetime().make_state<std::unique_ptr<Ui::Text::CustomEmoji>>();
+
+	struct EmojiStatusState {
+		std::unique_ptr<Ui::Text::CustomEmoji> emoji;
+	};
+	const auto emojiState = button->lifetime().make_state<EmojiStatusState>();
+
 	rpl::combine(
 		button->widthValue(),
 		rpl::duplicate(label),
-		rpl::duplicate(colorIndexValue)
-	) | rpl::start_with_next([=](
+		rpl::duplicate(colorIndexValue),
+		rpl::duplicate(colorProfileIndexValue),
+		rpl::duplicate(emojiStatusIdValue)
+	) | rpl::on_next([=](
 			int width,
-			const QString &button,
-			int colorIndex) {
-		const auto sampleSize = st::settingsColorSampleSize;
+			const QString &buttonText,
+			int colorIndex,
+			std::optional<uint8> profileIndex,
+			EmojiStatusId emojiStatusId) {
 		const auto available = width
 			- st::settingsButton.padding.left()
 			- (st::settingsColorButton.padding.right() - sampleSize)
-			- st::settingsButton.style.font->width(button)
+			- st::settingsButton.style.font->width(buttonText)
 			- st::settingsButtonRightSkip;
-		if (style->colorPatternIndex(colorIndex)) {
+
+		const auto hasEmojiStatus = emojiStatusId
+			&& emojiStatusId.collectible;
+		const auto hasProfile = profileIndex.has_value() || hasEmojiStatus;
+
+		if (hasEmojiStatus && emojiStatusId.collectible) {
+			const auto color = emojiStatusId.collectible->centerColor;
+			profileState->colorSet.palette = { color };
+			profileState->colorSet.bg = { color };
+			profileState->colorSet.story = { color };
+		} else if (hasProfile) {
+			const auto peerColors = &peer->session().api().peerColors();
+			profileState->colorSet
+				= peerColors->colorProfileFor(peer).value_or(
+					Data::ColorProfileSet{});
+		}
+
+		profileSample->setVisible(hasProfile);
+		emojiStatusWidget->setVisible(hasEmojiStatus);
+
+		if (hasEmojiStatus && !emojiState->emoji) {
+			emojiState->emoji
+				= peer->session().data().customEmojiManager().create(
+					Data::EmojiStatusCustomId(emojiStatusId),
+					[raw = emojiStatusWidget] { raw->update(); },
+					Data::CustomEmojiSizeTag::Normal);
+		} else if (!hasEmojiStatus) {
+			emojiState->emoji = nullptr;
+		}
+
+		sample->setForceCircle(hasProfile);
+		if (style->colorPatternIndex(colorIndex) || hasProfile) {
 			sample->resize(sampleSize, sampleSize);
 		} else {
 			const auto padding = st::settingsColorSamplePadding;
@@ -2566,13 +2656,27 @@ void SetupPeerColorSample(
 			sample->resize(std::min(wantedWidth, available), wantedHeight);
 		}
 		sample->update();
+		sample->setCutoutPadding(hasProfile
+			? st::settingsColorSampleCutout
+			: 0);
+		profileSample->update();
+		emojiStatusWidget->update();
 	}, sample->lifetime());
 
 	rpl::combine(
 		button->sizeValue(),
 		sample->sizeValue(),
-		std::move(colorIndexValue)
-	) | rpl::start_with_next([=](QSize outer, QSize inner, int colorIndex) {
+		rpl::duplicate(colorIndexValue),
+		rpl::duplicate(colorProfileIndexValue),
+		rpl::duplicate(emojiStatusIdValue)
+	) | rpl::on_next([=](
+			QSize outer,
+			QSize inner,
+			int colorIndex,
+			std::optional<uint8> profileIndex,
+			EmojiStatusId emojiStatusId) {
+		const auto hasColor = (colorIndex != 0);
+
 		const auto right = st::settingsColorButton.padding.right()
 			- st::settingsColorSampleSkip
 			- st::settingsColorSampleSize
@@ -2582,9 +2686,34 @@ void SetupPeerColorSample(
 		sample->move(
 			outer.width() - right - inner.width(),
 			(outer.height() - inner.height()) / 2);
+		const auto profilePos = sample->pos()
+			+ (hasColor
+				? QPoint(st::settingsColorProfileSampleShift
+					- st::settingsColorSampleSize
+					- st::lineWidth, 0)
+				: QPoint());
+		profileSample->move(profilePos);
+		emojiStatusWidget->move(profilePos);
 	}, sample->lifetime());
 
+	constexpr auto kScale = 0.7;
+	emojiStatusWidget->paintOn([=](QPainter &p) {
+		if (!emojiState->emoji) {
+			return;
+		}
+		const auto size = emojiStatusWidget->size();
+		const auto offset = (size * (1.0 - kScale)) / 2.0;
+		p.translate(offset.width(), offset.height());
+		p.scale(kScale, kScale);
+		emojiState->emoji->paint(p, {
+			.textColor = st::windowFg->c,
+			.now = crl::now(),
+		});
+	});
+
 	sample->setAttribute(Qt::WA_TransparentForMouseEvents);
+	profileSample->setAttribute(Qt::WA_TransparentForMouseEvents);
+	emojiStatusWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
 }
 
 void AddPeerColorButton(
@@ -2611,6 +2740,32 @@ void AddPeerColorButton(
 		SetupPeerColorSample(button, peer, rpl::duplicate(label), style);
 	}
 
+	{
+		const auto badge = Ui::NewBadge::CreateNewBadge(
+			button,
+			tr::lng_premium_summary_new_badge()).get();
+		rpl::combine(
+			rpl::duplicate(label),
+			button->widthValue()
+		) | rpl::on_next([=](
+				const QString &text,
+				int width) {
+			const auto space = st.style.font->spacew;
+			const auto left = st.padding.left()
+				+ st.style.font->width(text)
+				+ space;
+			const auto available = width - left - st.padding.right();
+			badge->setVisible(available >= badge->width());
+			if (!badge->isHidden()) {
+				const auto top = st.padding.top()
+					+ st.style.font->ascent
+					- st::settingsPremiumNewBadge.style.font->ascent
+					- st::settingsPremiumNewBadgePadding.top();
+				badge->moveToLeft(left, top, width);
+			}
+		}, badge->lifetime());
+	}
+
 	button->setClickedCallback([=] {
 		show->show(Box(EditPeerColorBox, show, peer, style, theme));
 	});
@@ -2622,7 +2777,7 @@ void CheckBoostLevel(
 		Fn<std::optional<Ui::AskBoostReason>(int level)> askMore,
 		Fn<void()> cancel) {
 	peer->session().api().request(MTPpremium_GetBoostsStatus(
-		peer->input
+		peer->input()
 	)).done([=](const MTPpremium_BoostsStatus &result) {
 		const auto &data = result.data();
 		if (const auto channel = peer->asChannel()) {

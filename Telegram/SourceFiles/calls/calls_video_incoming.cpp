@@ -114,7 +114,7 @@ private:
 Panel::Incoming::RendererGL::RendererGL(not_null<Incoming*> owner)
 : _owner(owner) {
 	style::PaletteChanged(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		_controlsShadowImage.invalidate();
 	}, _lifetime);
 }
@@ -163,6 +163,7 @@ void Panel::Incoming::RendererGL::init(QOpenGLFunctions &f) {
 }
 
 void Panel::Incoming::RendererGL::deinit(QOpenGLFunctions *f) {
+	_controlsShadowImage.destroy(f);
 	_textures.destroy(f);
 	_imageProgram = std::nullopt;
 	_texturedVertexShader = nullptr;

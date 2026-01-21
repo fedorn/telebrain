@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/local_url_handlers.h"
 
 #include "api/api_authorizations.h"
+#include "api/api_cloud_password.h"
 #include "api/api_confirm_phone.h"
 #include "api/api_chat_filters.h"
 #include "api/api_chat_invite.h"
@@ -52,6 +53,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_peer_menu.h"
 #include "window/themes/window_theme_editor_box.h" // GenerateSlug.
 #include "payments/payments_checkout_process.h"
+#include "settings/cloud_password/settings_cloud_password_login_email.h"
 #include "settings/settings_active_sessions.h"
 #include "settings/settings_credits.h"
 #include "settings/settings_credits_graphics.h"
@@ -152,10 +154,10 @@ void PersonalChannelController::prepare() {
 		}
 		if (!delegate()->peerListFullRowsCount()) {
 			auto none = rpl::combine(
-				tr::lng_settings_channel_no_yet(Ui::Text::WithEntities),
+				tr::lng_settings_channel_no_yet(tr::marked),
 				tr::lng_settings_channel_start()
 			) | rpl::map([](TextWithEntities &&text, const QString &link) {
-				return text.append('\n').append(Ui::Text::Link(link));
+				return text.append('\n').append(tr::link(link));
 			});
 			auto label = object_ptr<Ui::FlatLabel>(
 				nullptr,
@@ -229,7 +231,7 @@ void SavePersonalChannel(
 			&& self->personalChannelMessageId() != messageId)) {
 		self->setPersonalChannel(channelId, messageId);
 		self->session().api().request(MTPaccount_UpdatePersonalChannel(
-			channel ? channel->inputChannel : MTP_inputChannelEmpty()
+			channel ? channel->inputChannel() : MTP_inputChannelEmpty()
 		)).done(crl::guard(window, [=] {
 			window->showToast((channel
 				? tr::lng_settings_channel_saved
@@ -320,7 +322,7 @@ void ShowPhonePrivacyBox(Window::SessionController *controller) {
 		key
 	) | rpl::take(
 		1
-	) | rpl::start_with_next([=](const Privacy::Rule &value) mutable {
+	) | rpl::on_next([=](const Privacy::Rule &value) mutable {
 		using namespace ::Settings;
 		const auto show = shared->alive();
 		if (lifetime) {
@@ -497,6 +499,40 @@ bool ShowWallPaper(
 	return result;
 }
 
+void LoginEmailBox(
+		not_null<Ui::GenericBox*> box,
+		rpl::producer<QString> email,
+		Fn<void()> callback) {
+	{
+		box->getDelegate()->setTitle(rpl::duplicate(
+			email
+		) | rpl::map([](QString email) {
+			if (email.contains(' ')) {
+				return tr::lng_settings_cloud_login_email_section_title(
+					tr::now,
+					tr::rich);
+			}
+			return Ui::Text::WrapEmailPattern(std::move(email));
+		}));
+		for (const auto &child : ranges::views::reverse(
+				box->parentWidget()->children())) {
+			if (child && child->isWidgetType()) {
+				(static_cast<QWidget*>(child))->setAttribute(
+					Qt::WA_TransparentForMouseEvents);
+				break;
+			}
+		}
+	}
+	Ui::ConfirmBox(box, Ui::ConfirmBoxArgs{
+		.text = tr::lng_settings_cloud_login_email_box_about(),
+		.confirmed = [=](Fn<void()> close) {
+			callback();
+			close();
+		},
+		.confirmText = tr::lng_settings_cloud_login_email_box_ok(),
+	});
+}
+
 [[nodiscard]] ChatAdminRights ParseRequestedAdminRights(
 		const QString &value) {
 	auto result = ChatAdminRights();
@@ -633,7 +669,6 @@ bool ResolveUsernameOrPhone(
 		post = postId;
 	}
 	const auto storyParam = params.value(u"story"_q);
-	const auto storyId = storyParam.toInt();
 	const auto storyAlbumParam = params.value(u"album"_q);
 	const auto storyAlbumId = storyAlbumParam.toInt();
 	const auto giftCollectionParam = params.value(u"collection"_q);
@@ -665,7 +700,7 @@ bool ResolveUsernameOrPhone(
 		.usernameOrId = domain,
 		.phone = phone,
 		.messageId = post,
-		.storyId = storyId,
+		.storyParam = storyParam,
 		.storyAlbumId = storyAlbumId,
 		.giftCollectionId = giftCollectionId,
 		.videoTimestamp = (!videot.isEmpty()
@@ -759,6 +794,21 @@ bool ResolvePrivatePost(
 	return true;
 }
 
+void ShowLoginEmailSettings(Window::SessionController *controller) {
+	controller->session().api().cloudPassword().reload();
+	controller->uiShow()->show(Box(
+		LoginEmailBox,
+		controller->session().api().cloudPassword().state(
+		) | rpl::map([](const Core::CloudPasswordState &state) {
+			return state.loginEmailPattern;
+		}),
+		[=] {
+			controller->showSettings(
+				::Settings::CloudLoginEmailId());
+			controller->window().activate();
+		}));
+}
+
 bool ResolveSettings(
 		Window::SessionController *controller,
 		const Match &match,
@@ -787,6 +837,9 @@ bool ResolveSettings(
 			return ::Settings::GlobalTTLId();
 		} else if (section == u"information"_q) {
 			return ::Settings::Information::Id();
+		} else if (section == u"login_email"_q) {
+			ShowLoginEmailSettings(controller);
+			return {};
 		}
 		return ::Settings::Main::Id();
 	}();
@@ -947,7 +1000,7 @@ bool ShowEditBirthday(
 		const auto save = [=](Data::Birthday result) {
 			using BFlag = MTPDbirthday::Flag;
 			controller->session().api().request(MTPusers_SuggestBirthday(
-				targetUser->inputUser,
+				targetUser->inputUser(),
 				MTP_birthday(
 					MTP_flags(result.year() ? BFlag::f_year : BFlag()),
 					MTP_int(result.day()),
@@ -1039,14 +1092,12 @@ bool ShowEditBirthday(
 				std::move(isExactlyContacts),
 				tr::lng_settings_birthday_contacts(
 					lt_link,
-					tr::lng_settings_birthday_contacts_link(
-					) | Ui::Text::ToLink(link),
-					Ui::Text::WithEntities),
+					tr::lng_settings_birthday_contacts_link(tr::url(link)),
+					tr::marked),
 				tr::lng_settings_birthday_about(
 					lt_link,
-					tr::lng_settings_birthday_about_link(
-					) | Ui::Text::ToLink(link),
-					Ui::Text::WithEntities)));
+					tr::lng_settings_birthday_about_link(tr::url(link)),
+					tr::marked)));
 		}));
 
 	}
@@ -1065,7 +1116,7 @@ bool ShowEditBirthdayPrivacy(
 		Api::UserPrivacy::Key::Birthday
 	) | rpl::take(
 		1
-	) | rpl::start_with_next([=](const Api::UserPrivacy::Rule &value) {
+	) | rpl::on_next([=](const Api::UserPrivacy::Rule &value) {
 		if (isFromBox) {
 			using namespace ::Settings;
 			class Controller final : public BirthdayPrivacyController {
@@ -1100,6 +1151,22 @@ bool ShowEditPersonalChannel(
 	} else if (controller->showFrozenError()) {
 		return true;
 	}
+	const auto maybePeerId = match->captured(1);
+	const auto maybeRemove = match->captured(2);
+
+	if (!maybePeerId.isEmpty()) {
+		if (const auto peerId = PeerId(maybePeerId.toULongLong())) {
+			if (const auto peer = controller->session().data().peer(peerId)) {
+				if (const auto channel = peer->asChannel()) {
+					SavePersonalChannel(controller, channel);
+					return true;
+				}
+			}
+		}
+	} else if (!maybeRemove.isEmpty()) {
+		SavePersonalChannel(controller, nullptr);
+		return true;
+	}
 
 	auto listController = std::make_unique<PersonalChannelController>(
 		controller);
@@ -1116,7 +1183,7 @@ bool ShowEditPersonalChannel(
 		};
 
 		rawController->chosen(
-		) | rpl::start_with_next([=](not_null<ChannelData*> channel) {
+		) | rpl::on_next([=](not_null<ChannelData*> channel) {
 			save(channel);
 		}, box->lifetime());
 
@@ -1535,10 +1602,10 @@ bool ResolveTopUp(
 					.text = tr::lng_credits_enough(
 						tr::now,
 						lt_link,
-						Ui::Text::Link(
-							Ui::Text::Bold(
+						tr::link(
+							tr::bold(
 								tr::lng_credits_enough_link(tr::now))),
-						Ui::Text::RichLangValue),
+						tr::rich),
 					.filter = filter,
 					.duration = 4 * crl::time(1000),
 				});
@@ -1584,6 +1651,21 @@ bool ResolveUniqueGift(
 		return false;
 	}
 	ResolveAndShowUniqueGift(controller->uiShow(), slug);
+	return true;
+}
+
+bool ResolveGiftAuction(
+		Window::SessionController *controller,
+		const Match &match,
+		const QVariant &context) {
+	if (!controller) {
+		return false;
+	}
+	const auto slug = match->captured(1);
+	if (slug.isEmpty()) {
+		return false;
+	}
+	controller->showStarGiftAuction(slug);
 	return true;
 }
 
@@ -1685,7 +1767,7 @@ const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
 			ResolvePrivatePost
 		},
 		{
-			u"^settings(/language|/devices|/folders|/privacy|/themes|/change_number|/auto_delete|/information|/edit_profile|/phone_privacy)?$"_q,
+			u"^settings(/language|/devices|/folders|/privacy|/themes|/change_number|/auto_delete|/information|/edit_profile|/phone_privacy|/login_email)?$"_q,
 			ResolveSettings
 		},
 		{
@@ -1723,6 +1805,10 @@ const std::vector<LocalUrlHandler> &LocalUrlHandlers() {
 		{
 			u"^nft/?\\?slug=([a-zA-Z0-9\\.\\_\\-]+)(&|$)"_q,
 			ResolveUniqueGift
+		},
+		{
+			u"^stargift_auction/?\\?slug=([a-zA-Z0-9\\.\\_\\-]+)(&|$)"_q,
+			ResolveGiftAuction
 		},
 		{
 			u"^call/?\\?slug=([a-zA-Z0-9\\.\\_\\-]+)(&|$)"_q,
@@ -1775,7 +1861,7 @@ const std::vector<LocalUrlHandler> &InternalUrlHandlers() {
 			ShowEditBirthdayPrivacy,
 		},
 		{
-			u"^edit_personal_channel$"_q,
+			u"^edit_personal_channel(?::(?:(\\d{2,})|(remove)))?$"_q,
 			ShowEditPersonalChannel,
 		},
 		{
@@ -1896,6 +1982,9 @@ QString TryConvertUrlToLocal(QString url) {
 		} else if (const auto nftMatch = regex_match(u"^nft/([a-zA-Z0-9\\.\\_\\-]+)(\\?|$)"_q, query, matchOptions)) {
 			const auto slug = nftMatch->captured(1);
 			return u"tg://nft?slug="_q + slug;
+		} else if (const auto auctionMatch = regex_match(u"^auction/([a-zA-Z0-9\\.\\_\\-]+)(\\?|$)"_q, query, matchOptions)) {
+			const auto slug = auctionMatch->captured(1);
+			return u"tg://stargift_auction?slug="_q + slug;
 		} else if (const auto callMatch = regex_match(u"^call/([a-zA-Z0-9\\.\\_\\-]+)(\\?|$)"_q, query, matchOptions)) {
 			const auto slug = callMatch->captured(1);
 			return u"tg://call?slug="_q + slug;
@@ -1928,7 +2017,7 @@ QString TryConvertUrlToLocal(QString url) {
 				"/?$|"
 				"/[a-zA-Z0-9\\.\\_\\-]+/?(\\?|$)|"
 				"/\\d+/?(\\?|$)|"
-				"/s/\\d+/?(\\?|$)|"
+				"/s/(\\d+|live)/?(\\?|$)|"
 				"/a/\\d+/?(\\?|$)|"
 				"/c/\\d+/?(\\?|$)|"
 				"/\\d+/\\d+/?(\\?|$)"
@@ -1951,7 +2040,7 @@ QString TryConvertUrlToLocal(QString url) {
 				added = u"&topic=%1&post=%2"_q.arg(threadPostMatch->captured(1), threadPostMatch->captured(2));
 			} else if (const auto postMatch = regex_match(u"^/(\\d+)(/?\\?|/?$)"_q, usernameMatch->captured(2))) {
 				added = u"&post="_q + postMatch->captured(1);
-			} else if (const auto storyMatch = regex_match(u"^/s/(\\d+)(/?\\?|/?$)"_q, usernameMatch->captured(2))) {
+			} else if (const auto storyMatch = regex_match(u"^/s/(\\d+|live)(/?\\?|/?$)"_q, usernameMatch->captured(2))) {
 				added = u"&story="_q + storyMatch->captured(1);
 			} else if (const auto albumMatch = regex_match(u"^/a/(\\d+)(/?\\?|/?$)"_q, usernameMatch->captured(2))) {
 				added = u"&album="_q + albumMatch->captured(1);

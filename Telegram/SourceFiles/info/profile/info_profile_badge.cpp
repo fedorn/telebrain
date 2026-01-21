@@ -50,7 +50,7 @@ Badge::Badge(
 , _animationPaused(std::move(animationPaused)) {
 	std::move(
 		content
-	) | rpl::start_with_next([=](Content content) {
+	) | rpl::on_next([=](Content content) {
 		setContent(content);
 	}, _lifetime);
 }
@@ -105,7 +105,10 @@ void Badge::setContent(Content content) {
 				Data::EmojiStatusCustomId(id),
 				[raw = _view.data()] { raw->update(); },
 				sizeTag());
-			if (_customStatusLoopsLimit > 0) {
+			if (_content.badge == BadgeType::BotVerified) {
+				_emojiStatus = std::make_unique<Ui::Text::FirstFrameEmoji>(
+					std::move(_emojiStatus));
+			} else if (_customStatusLoopsLimit > 0) {
 				_emojiStatus = std::make_unique<Ui::Text::LimitedLoopsEmoji>(
 					std::move(_emojiStatus),
 					_customStatusLoopsLimit);
@@ -115,7 +118,7 @@ void Badge::setContent(Content content) {
 		const auto height = std::max(emoji, icon ? icon->height() : 0);
 		_view->resize(width, height);
 		_view->paintRequest(
-		) | rpl::start_with_next([=, check = _view.data()]{
+		) | rpl::on_next([=, check = _view.data()]{
 			if (_emojiStatus) {
 				auto args = Ui::Text::CustomEmoji::Context{
 					.textColor = style.premiumFg->c,
@@ -131,7 +134,7 @@ void Badge::setContent(Content content) {
 			}
 			if (icon) {
 				auto p = Painter(check);
-				if (_overrideSt) {
+				if (_overrideSt && !iconForeground) {
 					icon->paint(
 						p,
 						emoji,
@@ -142,7 +145,16 @@ void Badge::setContent(Content content) {
 					icon->paint(p, emoji, 0, check->width());
 				}
 				if (iconForeground) {
-					iconForeground->paint(p, emoji, 0, check->width());
+					if (_overrideSt) {
+						iconForeground->paint(
+							p,
+							emoji,
+							0,
+							check->width(),
+							_overrideSt->premiumFg->c);
+					} else {
+						iconForeground->paint(p, emoji, 0, check->width());
+					}
 				}
 			}
 		}, _view->lifetime());
@@ -161,7 +173,7 @@ void Badge::setContent(Content content) {
 			size.width() + 2 * skip,
 			size.height() + 2 * skip);
 		_view->paintRequest(
-		) | rpl::start_with_next([=, badge = _view.data()]{
+		) | rpl::on_next([=, badge = _view.data()]{
 			Painter p(badge);
 			Ui::DrawTextBadge(
 				type,
@@ -245,6 +257,9 @@ rpl::producer<Badge::Content> BadgeContentForPeer(not_null<PeerData*> peer) {
 		BadgeValue(peer),
 		EmojiStatusIdValue(peer)
 	) | rpl::map([=](BadgeType badge, EmojiStatusId emojiStatusId) {
+		if (emojiStatusId.collectible) {
+			return Badge::Content{ BadgeType::Premium, emojiStatusId };
+		}
 		if (badge == BadgeType::Verified) {
 			badge = BadgeType::None;
 		}

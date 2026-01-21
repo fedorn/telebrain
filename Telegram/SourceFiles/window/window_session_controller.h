@@ -195,6 +195,7 @@ struct SectionShow {
 	bool forceTopicsList = false;
 	bool reapplyLocalDraft = false;
 	bool dropSameFromStack = false;
+	bool allowDuplicateInStack = false;
 	Origin origin;
 
 };
@@ -655,7 +656,9 @@ public:
 		Data::StoriesContext context);
 	void openPeerStories(
 		PeerId peerId,
-		std::optional<Data::StorySourcesList> list = std::nullopt);
+		std::optional<Data::StorySourcesList> list = std::nullopt,
+		bool onlyLive = false,
+		bool afterReload = false);
 
 	[[nodiscard]] Ui::ChatPaintContext preparePaintContext(
 		Ui::ChatPaintContextArgs &&args);
@@ -693,6 +696,9 @@ public:
 		not_null<Data::Thread*> thread)
 		-> std::unique_ptr<HistoryView::SubsectionTabs>;
 	void dropSubsectionTabs();
+
+	void showStarGiftAuction(const QString &slug);
+	void showStarGiftAuction(uint64 giftId);
 
 	[[nodiscard]] rpl::lifetime &lifetime() {
 		return _lifetime;
@@ -812,6 +818,8 @@ private:
 	QString _premiumRef;
 	std::unique_ptr<HistoryView::SubsectionTabs> _savedSubsectionTabs;
 	rpl::lifetime _savedSubsectionTabsLifetime;
+
+	rpl::lifetime _starGiftAuctionLifetime;
 
 	rpl::lifetime _lifetime;
 

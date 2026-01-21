@@ -148,7 +148,7 @@ vec4 shadow() {
 Pip::RendererGL::RendererGL(not_null<Pip*> owner)
 : _owner(owner) {
 	style::PaletteChanged(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		_radialImage.invalidate();
 		_playbackImage.invalidate();
 		_volumeControllerImage.invalidate();
@@ -232,6 +232,11 @@ void Pip::RendererGL::init(QOpenGLFunctions &f) {
 }
 
 void Pip::RendererGL::deinit(QOpenGLFunctions *f) {
+	_radialImage.destroy(f);
+	_controlsImage.destroy(f);
+	_playbackImage.destroy(f);
+	_volumeControllerImage.destroy(f);
+	_shadowImage.destroy(f);
 	_textures.destroy(f);
 	_imageProgram = std::nullopt;
 	_texturedVertexShader = nullptr;

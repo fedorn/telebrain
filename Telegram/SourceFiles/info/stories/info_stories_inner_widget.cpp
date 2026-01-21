@@ -24,6 +24,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_top_bar.h"
 #include "info/profile/info_profile_values.h"
 #include "info/profile/info_profile_widget.h"
+#include "info/saved/info_saved_music_common.h"
 #include "info/stories/info_stories_albums.h"
 #include "info/stories/info_stories_widget.h"
 #include "info/info_controller.h"
@@ -44,6 +45,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/vertical_list.h"
+#include "ui/ui_utility.h"
 #include "styles/style_credits.h"
 #include "styles/style_dialogs.h"
 #include "styles/style_info.h"
@@ -97,7 +99,7 @@ EditAlbumBox::EditAlbumBox(
 , _changes(Data::StoryAlbumUpdate{ .peer = peer, .albumId = albumId })
 , _reload(std::move(reload)) {
 	_content->selectedListValue(
-	) | rpl::start_with_next([=](const SelectedItems &selection) {
+	) | rpl::on_next([=](const SelectedItems &selection) {
 		const auto stories = &_window->session().data().stories();
 		auto ids = stories->albumKnownInArchive(peer->id, albumId);
 		auto now = _changes.current();
@@ -123,7 +125,7 @@ void EditAlbumBox::prepare() {
 	setStyle(st::collectionEditBox);
 
 	_content->desiredHeightValue(
-	) | rpl::start_with_next([=](int height) {
+	) | rpl::on_next([=](int height) {
 		setDimensions(st::boxWideWidth, height);
 	}, _content->lifetime());
 
@@ -166,7 +168,7 @@ void EditAlbumBox::prepare() {
 					| (remove.isEmpty()
 						? Flag()
 						: Flag::f_delete_stories)),
-				changes.peer->input,
+				changes.peer->input(),
 				MTP_int(changes.albumId),
 				MTPstring(),
 				MTP_vector<MTPint>(remove),
@@ -215,7 +217,7 @@ InnerWidget::InnerWidget(
 	preloadArchiveCount();
 
 	_albumId.value(
-	) | rpl::start_with_next([=](int albumId) {
+	) | rpl::on_next([=](int albumId) {
 		if (_albumsTabs
 			&& (albumId == Data::kStoriesAlbumIdSaved
 				|| ranges::contains(
@@ -244,7 +246,7 @@ void InnerWidget::preloadArchiveCount() {
 		rpl::mappers::_1 == key
 	) | rpl::take_while([=] {
 		return !stories->albumIdsCountKnown(_peer->id, kArchive);
-	}) | rpl::start_with_next([=] {
+	}) | rpl::on_next([=] {
 		refreshAlbumsTabs();
 	}, lifetime());
 }
@@ -255,13 +257,17 @@ void InnerWidget::setupAlbums() {
 
 	_peer->owner().stories().albumsListValue(
 		_peer->id
-	) | rpl::start_with_next([=](std::vector<Data::StoryAlbum> &&albums) {
+	) | rpl::on_next([=](std::vector<Data::StoryAlbum> &&albums) {
 		_albums = std::move(albums);
 		refreshAlbumsTabs();
 	}, lifetime());
 }
 
 InnerWidget::~InnerWidget() = default;
+
+rpl::producer<> InnerWidget::backRequest() const {
+	return _backClicks.events();
+}
 
 void InnerWidget::setupTop() {
 	const auto albumId = _albumId.current();
@@ -285,6 +291,8 @@ void InnerWidget::setupTop() {
 }
 
 void InnerWidget::startTop() {
+	_albumsTabs = nullptr;
+	_albumsWrap = nullptr;
 	_top.create(this);
 	_top->show();
 	_topHeight = _top->heightValue();
@@ -293,8 +301,24 @@ void InnerWidget::startTop() {
 void InnerWidget::createProfileTop() {
 	startTop();
 
+	Info::Saved::SetupSavedMusic(
+		_top,
+		_controller,
+		_peer,
+		_topBarColor.value());
+
 	using namespace Profile;
-	AddDetails(_top, _controller, _peer, nullptr, nullptr, { v::null });
+	auto mainTracker = Ui::MultiSlideTracker();
+	auto dividerOverridden = rpl::variable<bool>(false);
+	AddDetails(
+		_top,
+		_controller,
+		_peer,
+		nullptr,
+		nullptr,
+		{ v::null },
+		mainTracker,
+		dividerOverridden);
 
 	auto tracker = Ui::MultiSlideTracker();
 	const auto dividerWrap = _top->add(
@@ -408,7 +432,7 @@ void InnerWidget::addRecentButton(Ui::MultiSlideTracker &tracker) {
 	rpl::combine(
 		recent->sizeValue(),
 		rpl::duplicate(last)
-	) | rpl::start_with_next([=](QSize size, const Content &content) {
+	) | rpl::on_next([=](QSize size, const Content &content) {
 		if (content.elements.empty()) {
 			return;
 		}
@@ -504,6 +528,8 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 			.backToggles = _backToggles.value(),
 			.showFinished = _showFinished.events(),
 		});
+	content->backRequest(
+	) | rpl::start_to_stream(_backClicks, content->lifetime());
 	_topBarColor = content->edgeColor();
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });
 }
@@ -530,7 +556,7 @@ void InnerWidget::finalizeTop() {
 	_top->resizeToWidth(width());
 
 	_top->heightValue(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		refreshHeight();
 	}, _top->lifetime());
 }
@@ -554,6 +580,7 @@ void InnerWidget::createAboutArchive() {
 void InnerWidget::visibleTopBottomUpdated(
 		int visibleTop,
 		int visibleBottom) {
+	_visibleRange = { visibleTop, visibleBottom };
 	setChildVisibleTopBottom(_list, visibleTop, visibleBottom);
 }
 
@@ -572,6 +599,30 @@ void InnerWidget::setupList() {
 		this,
 		_controller);
 	const auto raw = _list.data();
+	const auto albumId = _albumId.current();
+	if (albumId && albumId != Data::kStoriesAlbumIdArchive) {
+		raw->setReorderDescriptor({
+			// .filter = [=](HistoryItem *item) {
+			// 	const auto stories = &_peer->owner().stories();
+			// 	const auto &albumIds = stories->albumIds(_peer->id, albumId);
+			// 	const auto storyId = StoryIdFromMsgId(item->id);
+			// 	return !ranges::contains(albumIds.pinnedToTop, storyId);
+			// },
+			.save = [=](
+					int oldPosition,
+					int newPosition,
+					Fn<void()> done,
+					Fn<void()> fail) {
+				_peer->owner().stories().albumReorderStories(
+					_peer,
+					albumId,
+					oldPosition,
+					newPosition,
+					done,
+					fail);
+			}
+		});
+	}
 
 	using namespace rpl::mappers;
 	raw->scrollToRequests(
@@ -585,6 +636,10 @@ void InnerWidget::setupList() {
 	_listTops.fire(raw->topValue());
 
 	raw->show();
+
+	Ui::PostponeCall(crl::guard(this, [=] {
+		visibleTopBottomUpdated(_visibleRange.top, _visibleRange.bottom);
+	}));
 }
 
 void InnerWidget::setupEmpty() {
@@ -601,7 +656,7 @@ void InnerWidget::setupEmpty() {
 			) | rpl::to_empty
 		),
 		_list->heightValue()
-	) | rpl::start_with_next([=](auto, int listHeight) {
+	) | rpl::on_next([=](auto, int listHeight) {
 		const auto padding = st::infoMediaMargin;
 		if (const auto raw = _empty.release()) {
 			raw->hide();
@@ -665,10 +720,10 @@ void InnerWidget::refreshEmpty() {
 		_empty = object_ptr<Ui::FlatLabel>(
 			this,
 			(!knownEmpty
-				? tr::lng_contacts_loading(Ui::Text::WithEntities)
+				? tr::lng_contacts_loading(tr::marked)
 				: _peer->isSelf()
-				? tr::lng_stories_empty(Ui::Text::RichLangValue)
-				: tr::lng_stories_empty_channel(Ui::Text::RichLangValue)),
+				? tr::lng_stories_empty(tr::rich)
+				: tr::lng_stories_empty_channel(tr::rich)),
 			st::giftListAbout);
 		_empty->show();
 	}
@@ -697,7 +752,7 @@ void InnerWidget::refreshAlbumsTabs() {
 			.id = u"all"_q,
 			.text = tr::lng_stories_album_all(
 				tr::now,
-				Ui::Text::WithEntities),
+				tr::marked),
 		});
 		for (const auto &album : _albums) {
 			auto title = TextWithEntities();
@@ -740,13 +795,13 @@ void InnerWidget::refreshAlbumsTabs() {
 		_albumsWrap->resize(
 			_albumsWrap->width(),
 			padding.top() + _albumsTabs->height() + padding.top());
-		_albumsWrap->widthValue() | rpl::start_with_next([=](int width) {
+		_albumsWrap->widthValue() | rpl::on_next([=](int width) {
 			_albumsTabs->resizeToWidth(width);
 		}, _albumsTabs->lifetime());
 		_albumsTabs->move(0, padding.top());
 
 		_albumsTabs->activated(
-		) | rpl::start_with_next([=](const QString &id) {
+		) | rpl::on_next([=](const QString &id) {
 			if (id == u"add"_q) {
 				const auto added = [=](Data::StoryAlbum album) {
 					albumAdded(album);
@@ -763,7 +818,7 @@ void InnerWidget::refreshAlbumsTabs() {
 		}, _albumsTabs->lifetime());
 
 		_albumsTabs->contextMenuRequests(
-		) | rpl::start_with_next([=](const QString &id) {
+		) | rpl::on_next([=](const QString &id) {
 			if (id == u"add"_q || id == u"all"_q) {
 				return;
 			}
@@ -772,7 +827,7 @@ void InnerWidget::refreshAlbumsTabs() {
 
 		using ReorderUpdate = Ui::SubTabsReorderUpdate;
 		_albumsTabs->reorderUpdates(
-		) | rpl::start_with_next([=](const ReorderUpdate &update) {
+		) | rpl::on_next([=](const ReorderUpdate &update) {
 			if (update.state == ReorderUpdate::State::Applied) {
 				reorderAlbumsLocally(update);
 			}
@@ -1065,7 +1120,7 @@ void InnerWidget::flushAlbumReorder() {
 	}
 
 	_reorderRequestId = _api->request(MTPstories_ReorderAlbums(
-		_peer->input,
+		_peer->input(),
 		MTP_vector<MTPint>(order)
 	)).done([=] {
 		_reorderRequestId = 0;

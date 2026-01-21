@@ -13,9 +13,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Info {
 
+extern const char kAlternativeScrollProcessing[];
+
 struct FlexibleScrollData {
 	rpl::event_stream<int> contentHeightValue;
 	rpl::event_stream<int> fillerWidthValue;
+	rpl::event_stream<> backButtonEnables;
 };
 
 class FlexibleScrollHelper final {
@@ -31,6 +34,9 @@ public:
 private:
 	void setupScrollAnimation();
 	void setupScrollHandling();
+	void setupScrollHandlingWithFilter();
+	void scrollToY(int value);
+	void applyScrollToPinnedLayout(int scrollCurrent);
 
 	const not_null<Ui::ScrollArea*> _scroll;
 	const not_null<Ui::RpWidget*> _inner;
@@ -46,6 +52,7 @@ private:
 	int _lastScrollApplied = 0;
 	int _scrollTopPrevious = 0;
 	bool _applyingFakeScrollState = false;
+	rpl::lifetime _filterLifetime;
 };
 
 } // namespace Info

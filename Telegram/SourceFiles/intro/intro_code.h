@@ -31,10 +31,6 @@ public:
 		not_null<Main::Account*> account,
 		not_null<Data*> data);
 
-	QAccessible::Role accessibilityRole() override {
-		return QAccessible::Role::Dialog;
-	}
-
 	bool hasBack() const override {
 		return true;
 	}
@@ -66,6 +62,7 @@ private:
 
 	void codeSubmitDone(const MTPauth_Authorization &result);
 	void codeSubmitFail(const MTP::Error &error);
+	void emailVerifyDone(const MTPaccount_EmailVerified &result);
 
 	void showCodeError(rpl::producer<QString> text);
 	void callDone(const MTPauth_SentCode &result);

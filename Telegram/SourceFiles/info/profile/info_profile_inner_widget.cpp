@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_user.h"
 #include "data/data_saved_music.h"
 #include "data/data_saved_sublist.h"
+#include "info/saved/info_saved_music_common.h"
 #include "info_profile_actions.h"
 #include "main/main_session.h"
 #include "apiwrap.h"
@@ -49,11 +50,6 @@ namespace Profile {
 
 namespace {
 
-[[nodiscard]] MusicButtonData DocumentMusicButtonData(
-		not_null<DocumentData*> document) {
-	return { Ui::Text::FormatSongNameFor(document) };
-}
-
 void AddAboutVerification(
 		not_null<Ui::VerticalLayout*> layout,
 		not_null<PeerData*> peer) {
@@ -61,15 +57,23 @@ void AddAboutVerification(
 	peer->session().changes().peerFlagsValue(
 		peer,
 		Data::PeerUpdate::Flag::VerifyInfo
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		const auto info = peer->botVerifyDetails();
 		while (inner->count()) {
 			delete inner->widgetAt(0);
 		}
 		if (!info) {
 			Ui::AddDivider(inner);
-		} else if (!info->description.empty()) {
-			Ui::AddDividerText(inner, rpl::single(info->description));
+		} else {
+			auto hasMainApp = false;
+			if (const auto user = peer->asUser()) {
+				if (user->botInfo) {
+					hasMainApp = user->botInfo->hasMainApp;
+				}
+			}
+			if (!hasMainApp && !info->description.empty()) {
+				Ui::AddDividerText(inner, rpl::single(info->description));
+			}
 		}
 		inner->resizeToWidth(inner->width());
 	}, inner->lifetime());
@@ -89,12 +93,16 @@ InnerWidget::InnerWidget(
 , _sublist(_controller->key().sublist())
 , _content(setupContent(this, origin)) {
 	_content->heightValue(
-	) | rpl::start_with_next([this](int height) {
+	) | rpl::on_next([this](int height) {
 		if (!_inResize) {
 			resizeToWidth(width());
 			updateDesiredHeight();
 		}
 	}, lifetime());
+}
+
+rpl::producer<> InnerWidget::backRequest() const {
+	return _backClicks.events();
 }
 
 object_ptr<Ui::RpWidget> InnerWidget::setupContent(
@@ -104,7 +112,7 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 		user->session().changes().peerFlagsValue(
 			user,
 			Data::PeerUpdate::Flag::FullInfo
-		) | rpl::start_with_next([=] {
+		) | rpl::on_next([=] {
 			auto &photos = user->session().api().peerPhoto();
 			if (const auto original = photos.nonPersonalPhoto(user)) {
 				// Preload it for the edit contact box.
@@ -121,8 +129,29 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 		return result;
 	}
 
-	AddDetails(result, _controller, _peer, _topic, _sublist, origin);
-	result->add(setupSharedMedia(result.data()));
+	auto mainTracker = Ui::MultiSlideTracker();
+	auto sharedTracker = Ui::MultiSlideTracker();
+	auto dividerOverridden = rpl::variable<bool>(false);
+	AddDetails(
+		result,
+		_controller,
+		_peer,
+		_topic,
+		_sublist,
+		origin,
+		mainTracker,
+		dividerOverridden);
+	auto showDivider = rpl::combine(
+		mainTracker.atLeastOneShownValue(),
+		dividerOverridden.value()
+	) | rpl::map([](bool main, bool dividerOverridden) {
+		return dividerOverridden ? false : main;
+	}) | rpl::distinct_until_changed();
+	result->add(
+		setupSharedMedia(
+			result.data(),
+			rpl::duplicate(showDivider),
+			sharedTracker));
 	if (_topic || _sublist) {
 		return result;
 	}
@@ -135,27 +164,38 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			result->add(std::move(buttons));
 		}
 	}
+	auto showNext = rpl::combine(
+		std::move(showDivider),
+		sharedTracker.atLeastOneShownValue()
+	) | rpl::map([](bool show, bool shared) {
+		return show || shared;
+	}) | rpl::distinct_until_changed();
 	if (auto actions = SetupActions(_controller, result.data(), _peer)) {
-		addAboutVerificationOrDivider(result);
+		addAboutVerificationOrDivider(result, rpl::duplicate(showNext));
 		result->add(std::move(actions));
+	}
+	if (!_aboutVerificationAdded) {
+		AddAboutVerification(result, _peer);
 	}
 	if (_peer->isChat() || _peer->isMegagroup()) {
 		if (!_peer->isMonoforum()) {
-			setupMembers(result.data());
+			setupMembers(result.data(), rpl::duplicate(showNext));
 		}
 	}
 	return result;
 }
 
-void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
+void InnerWidget::setupMembers(
+		not_null<Ui::VerticalLayout*> container,
+		rpl::producer<bool> showDivider) {
 	auto wrap = container->add(object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 		container,
 		object_ptr<Ui::VerticalLayout>(container)));
 	const auto inner = wrap->entity();
-	addAboutVerificationOrDivider(inner);
+	addAboutVerificationOrDivider(inner, std::move(showDivider));
 	_members = inner->add(object_ptr<Members>(inner, _controller));
 	_members->scrollToRequests(
-	) | rpl::start_with_next([this](Ui::ScrollToRequest request) {
+	) | rpl::on_next([this](Ui::ScrollToRequest request) {
 		auto min = (request.ymin < 0)
 			? request.ymin
 			: MapFrom(this, _members, QPoint(0, request.ymin)).y();
@@ -167,7 +207,7 @@ void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
 		_scrollToRequests.fire({ min, max });
 	}, _members->lifetime());
 	_members->onlineCountValue(
-	) | rpl::start_with_next([=](int count) {
+	) | rpl::on_next([=](int count) {
 		_onlineCount.fire_copy(count);
 	}, _members->lifetime());
 
@@ -178,73 +218,52 @@ void InnerWidget::setupMembers(not_null<Ui::VerticalLayout*> container) {
 }
 
 void InnerWidget::setupSavedMusic(not_null<Ui::VerticalLayout*> container) {
-	auto musicValue = Data::SavedMusic::Supported(_peer->id)
-		? Data::SavedMusicList(
-			_peer,
-			nullptr,
-			1
-		) | rpl::map([=](const Data::SavedMusicSlice &data) {
-			return data.size() ? data[0].get() : nullptr;
-		}) | rpl::type_erased()
-		: rpl::single<HistoryItem*>((HistoryItem*)(nullptr));
-
-	const auto divider = container->add(
-		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
-			container,
-			object_ptr<Ui::VerticalLayout>(container)));
-
-	rpl::combine(
-		std::move(musicValue),
-		_topBarColor.value()
-	) | rpl::start_with_next([=](
-			HistoryItem *item,
-			std::optional<QColor> color) {
-		while (divider->entity()->count()) {
-			delete divider->entity()->widgetAt(0);
-		}
-		if (item) {
-			if (const auto document = item->media()
-					? item->media()->document()
-					: nullptr) {
-				const auto music = divider->entity()->add(
-					object_ptr<MusicButton>(
-						divider->entity(),
-						DocumentMusicButtonData(document),
-						[window = _controller, peer = _peer] {
-							window->showSection(Info::Saved::MakeMusic(peer));
-						}));
-				music->setOverrideBg(color);
-			}
-			divider->toggle(true, anim::type::normal);
-		}
-	}, lifetime());
-	divider->finishAnimating();
+	Info::Saved::SetupSavedMusic(
+		container,
+		_controller,
+		_sublist ? _sublist->sublistPeer() : _peer,
+		_topBarColor.value());
 }
 
 void InnerWidget::addAboutVerificationOrDivider(
-		not_null<Ui::VerticalLayout*> content) {
-	if (_aboutVerificationAdded) {
-		Ui::AddDivider(content);
+		not_null<Ui::VerticalLayout*> content,
+		rpl::producer<bool> showDivider) {
+	if (rpl::variable<bool>(rpl::duplicate(showDivider)).current()) {
+		if (_aboutVerificationAdded) {
+			Ui::AddDivider(content);
+		} else {
+			AddAboutVerification(content, _peer);
+			_aboutVerificationAdded = true;
+		}
 	} else {
-		AddAboutVerification(content, _peer);
-		_aboutVerificationAdded = true;
+		const auto wrap = content->add(
+			object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+				content,
+				object_ptr<Ui::VerticalLayout>(content)));
+		Ui::AddDivider(wrap->entity());
+		wrap->setDuration(
+			st::infoSlideDuration
+		)->toggleOn(rpl::duplicate(showDivider));
 	}
 }
 
 object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
-		not_null<RpWidget*> parent) {
+		not_null<RpWidget*> parent,
+		rpl::producer<bool> showDivider,
+		Ui::MultiSlideTracker &sharedTracker) {
 	using namespace rpl::mappers;
 	using MediaType = Media::Type;
 
+	const auto peer = _sublist ? _sublist->sublistPeer() : _peer;
 	auto content = object_ptr<Ui::VerticalLayout>(parent);
-	auto tracker = Ui::MultiSlideTracker();
+	auto &tracker = sharedTracker;
 	auto addMediaButton = [&](
 			MediaType type,
 			const style::icon &icon) {
 		auto result = Media::AddButton(
 			content,
 			_controller,
-			_peer,
+			peer,
 			_topic ? _topic->rootId() : MsgId(),
 			_sublist ? _sublist->sublistPeer()->id : PeerId(),
 			_migrated,
@@ -325,9 +344,9 @@ object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
 	};
 
 	if (!_topic) {
-		addStoriesButton(_peer, st::infoIconMediaStories);
-		addPeerGiftsButton(_peer, st::infoIconMediaGifts);
-		addSavedSublistButton(_peer, st::infoIconMediaSaved);
+		addStoriesButton(peer, st::infoIconMediaStories);
+		addPeerGiftsButton(peer, st::infoIconMediaGifts);
+		addSavedSublistButton(peer, st::infoIconMediaSaved);
 	}
 	addMediaButton(MediaType::Photo, st::infoIconMediaPhoto);
 	addMediaButton(MediaType::Video, st::infoIconMediaVideo);
@@ -336,12 +355,12 @@ object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
 	addMediaButton(MediaType::Link, st::infoIconMediaLink);
 	addMediaButton(MediaType::RoundVoiceFile, st::infoIconMediaVoice);
 	addMediaButton(MediaType::GIF, st::infoIconMediaGif);
-	if (const auto bot = _peer->asBot()) {
+	if (const auto bot = peer->asBot()) {
 		addCommonGroupsButton(bot, st::infoIconMediaGroup);
 		addSimilarPeersButton(bot, st::infoIconMediaBot);
-	} else if (const auto channel = _peer->asBroadcast()) {
+	} else if (const auto channel = peer->asBroadcast()) {
 		addSimilarPeersButton(channel, st::infoIconMediaChannel);
-	} else if (const auto user = _peer->asUser()) {
+	} else if (const auto user = peer->asUser()) {
 		addCommonGroupsButton(user, st::infoIconMediaGroup);
 	}
 
@@ -358,7 +377,7 @@ object_ptr<Ui::RpWidget> InnerWidget::setupSharedMedia(
 
 	auto layout = result->entity();
 
-	addAboutVerificationOrDivider(layout);
+	addAboutVerificationOrDivider(layout, std::move(showDivider));
 	Ui::AddSkip(layout, st::infoSharedMediaBottomSkip);
 	layout->add(std::move(content));
 	Ui::AddSkip(layout, st::infoSharedMediaBottomSkip);
@@ -432,9 +451,12 @@ base::weak_qptr<Ui::RpWidget> InnerWidget::createPinnedToTop(
 			.controller = _controller->parentController(),
 			.key = _controller->key(),
 			.wrap = _controller->wrapValue(),
+			.peer = _sublist ? _sublist->sublistPeer().get() : nullptr,
 			.backToggles = _backToggles.value(),
 			.showFinished = _showFinished.events(),
 		});
+	content->backRequest(
+	) | rpl::start_to_stream(_backClicks, content->lifetime());
 	content->setOnlineCount(_onlineCount.events());
 	_topBarColor = content->edgeColor();
 	return base::make_weak(not_null<Ui::RpWidget*>{ content });

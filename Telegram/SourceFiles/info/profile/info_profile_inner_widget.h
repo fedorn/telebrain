@@ -46,6 +46,8 @@ public:
 		not_null<Controller*> controller,
 		Origin origin);
 
+	[[nodiscard]] rpl::producer<> backRequest() const;
+
 	void saveState(not_null<Memento*> memento);
 	void restoreState(not_null<Memento*> memento);
 
@@ -71,8 +73,13 @@ private:
 	object_ptr<RpWidget> setupContent(
 		not_null<RpWidget*> parent,
 		Origin origin);
-	object_ptr<RpWidget> setupSharedMedia(not_null<RpWidget*> parent);
-	void setupMembers(not_null<Ui::VerticalLayout*> container);
+	object_ptr<RpWidget> setupSharedMedia(
+		not_null<RpWidget*> parent,
+		rpl::producer<bool> showDivider,
+		Ui::MultiSlideTracker &sharedTracker);
+	void setupMembers(
+		not_null<Ui::VerticalLayout*> container,
+		rpl::producer<bool> showDivider);
 	void setupSavedMusic(not_null<Ui::VerticalLayout*> container);
 
 	int countDesiredHeight() const;
@@ -80,7 +87,9 @@ private:
 		_desiredHeight.fire(countDesiredHeight());
 	}
 
-	void addAboutVerificationOrDivider(not_null<Ui::VerticalLayout*> content);
+	void addAboutVerificationOrDivider(
+		not_null<Ui::VerticalLayout*> content,
+		rpl::producer<bool> showDivider);
 
 	const not_null<Controller*> _controller;
 	const not_null<PeerData*> _peer;
@@ -93,6 +102,7 @@ private:
 	rpl::event_stream<int> _desiredHeight;
 
 	rpl::variable<bool> _backToggles;
+	rpl::event_stream<> _backClicks;
 	rpl::event_stream<int> _onlineCount;
 	rpl::event_stream<> _showFinished;
 

@@ -290,10 +290,14 @@ infoLayerTopBarQr: IconButton(infoLayerTopBarClose) {
 	iconPosition: point(8px, -1px);
 }
 infoLayerTopBarEdit: IconButton(infoLayerTopBarClose) {
-	width: 40px;
+	width: 44px;
+	height: infoLayerTopBarHeight - 2px;
 	icon: icon {{ "menu/edit", boxTitleCloseFg }};
 	iconOver: icon {{ "menu/edit", boxTitleCloseFgOver }};
-	iconPosition: point(8px, -1px);
+	iconPosition: point(10px, -1px);
+
+	rippleAreaSize: 42px;
+	rippleAreaPosition: point(1px, 6px);
 }
 infoLayerTopBarForward: IconButton(infoLayerTopBarBack) {
 	width: 45px;
@@ -413,7 +417,7 @@ infoProfileTopBarPhotoTop: 24px;
 infoProfileTopBarPhotoBgShift: 55px;
 infoProfileTopBarPhotoBgNoActionsShift: 30px;
 infoProfileTopBarPhotoSize: 80px;
-infoProfileTopBarLastSeenSkip: 8px;
+infoProfileTopBarLastSeenSkip: point(8px, 1px);
 
 infoProfileTopBarGiftSize: 20px;
 
@@ -426,8 +430,8 @@ infoProfileTopBarGiftBottomRight: point(40px, 13px);
 
 infoProfileTopBarActionButtonBgOpacity: 0.16;
 infoProfileTopBarActionButtonSize: 52px;
-infoProfileTopBarActionButtonIconSize: 24px;
-infoProfileTopBarActionButtonLottieSize: infoProfileTopBarActionButtonIconSize - 2px;
+infoProfileTopBarActionButtonIconSize: 23px;
+infoProfileTopBarActionButtonLottieSize: infoProfileTopBarActionButtonIconSize - 0px;
 infoProfileTopBarActionButtonIconTop: 6px;
 infoProfileTopBarActionButtonTextTop: infoProfileTopBarActionButtonIconSize + infoProfileTopBarActionButtonIconTop + 1px;
 infoProfileTopBarActionButtonTextSkip: 4px;
@@ -444,15 +448,20 @@ infoProfileTopBarNoActionsHeightMax: infoProfileTopBarHeightMax - infoProfileTop
 
 infoProfileTopBarActionMenuSkip: 10px;
 
-infoProfileTopBarActionMessage: icon{{ "profile/message-22x22", windowBoldFg }};
-infoProfileTopBarActionMute: icon{{ "profile/mute-22x22", windowBoldFg }};
-infoProfileTopBarActionUnmute: icon{{ "profile/unmute-22x22", windowBoldFg }};
-infoProfileTopBarActionCall: icon{{ "profile/call-22x22", windowBoldFg }};
-infoProfileTopBarActionGift: icon{{ "profile/gift-22x22", windowBoldFg }};
-infoProfileTopBarActionJoin: icon{{ "profile/join-22x22", windowBoldFg }};
-infoProfileTopBarActionReport: icon{{ "profile/report-22x22", windowBoldFg }};
-infoProfileTopBarActionLeave: icon{{ "profile/leave-22x22", windowBoldFg }};
+infoProfileTopBarActionMessage: icon{{ "profile/message-23x23", windowBoldFg }};
+infoProfileTopBarActionMute: icon{{ "profile/mute-23x23", windowBoldFg }};
+infoProfileTopBarActionUnmute: icon{{ "profile/unmute-23x23", windowBoldFg }};
+infoProfileTopBarActionCall: icon{{ "profile/call-23x23", windowBoldFg }};
+infoProfileTopBarActionGift: icon{{ "profile/gift-23x23", windowBoldFg }};
+infoProfileTopBarActionJoin: icon{{ "profile/join-23x23", windowBoldFg }};
+infoProfileTopBarActionReport: icon{{ "profile/report-23x23", windowBoldFg }};
+infoProfileTopBarActionLeave: icon{{ "profile/leave-23x23", windowBoldFg }};
 infoProfileTopBarActionMore: icon{{ "profile/profile_more", windowBoldFg }};
+infoProfileTopBarActionManage: icon{{ "profile/profile_manage", windowBoldFg }};
+
+infoProfileTopBarTopicStatusButton: RoundButton(defaultTableSmallButton) {
+	radius: 4px;
+}
 
 infoProfileTopBarBoostFooter: FlatLabel(defaultFlatLabel) {
 	textFg: windowSubTextFg;
@@ -470,6 +479,20 @@ infoProfileTopBarBoostFooterColored: FlatLabel(infoProfileTopBarBoostFooter) {
 		linkFg: groupCallIconFg;
 		selectLinkFg: groupCallIconFg;
 	}
+}
+
+infoProfileTopBarShowLastSeen: RoundButton(defaultActiveButton) {
+	textFg: windowBoldFg;
+	textFgOver: windowBoldFg;
+	textBg: windowBg;
+	textBgOver: windowBgOver;
+	width: -12px;
+	height: 18px;
+	textTop: 0px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(12px);
+	}
+	ripple: universalRippleAnimation;
 }
 
 infoMinimalWidth: 324px;
@@ -572,7 +595,7 @@ infoRatingDeductedBadge: RoundButton(customEmojiTextBadge) {
 
 infoProfileInaccessibleUserpic: icon {{ "info/inaccessible_userpic", historyPeerUserpicFg }};
 
-infoVerifiedCheckPosition: point(4px, 2px);
+infoVerifiedCheckPosition: point(4px, 0px);
 infoVerifiedStar: icon {{ "profile_verified_star", profileVerifiedCheckBg }};
 infoPremiumStar: icon {{ "profile_premium", profileVerifiedCheckBg }};
 
@@ -591,7 +614,7 @@ infoColoredPeerBadge: InfoPeerBadge(infoPeerBadge) {
 	verified: icon {{ "profile_verified_star", groupCallMembersFg }}; // Will be colorized.
 	verifiedCheck: icon {{ "profile_verified_check", groupCallMembersFg }};
 	premium: icon {{ "profile_premium", groupCallMembersFg }};
-	premiumFg: groupCallMembersFg;
+	premiumFg: groupCallVideoSubTextFg;
 }
 infoColoredBotVerifyBadge: InfoPeerBadge(infoColoredPeerBadge) {
 	position: point(-2px, 2px);
@@ -613,7 +636,7 @@ infoProfileLabeledButtonQr: IconButton(defaultIconButton) {
 	rippleAreaSize: 34px;
 	ripple: defaultRippleAnimation;
 }
-infoProfileLabeledButtonQrRightSkip: -4px;
+infoProfileLabeledButtonQrRightSkip: 0px;
 
 infoIconInformation: icon {{ "info/info_information", infoIconFg }};
 infoIconAddMember: icon {{ "info/info_add_member", infoIconFg }};
