@@ -2,7 +2,7 @@
 
 ### Prepare folder
 
-Choose a folder for the future build, for example **/home/user/TBuild**. It will be named ***BuildPath*** in the rest of this document. All commands will be launched from Terminal.
+Choose a folder for the future build, for example **/home/user/TBBuild**. It will be named ***BuildPath*** in the rest of this document. All commands will be launched from Terminal.
 
 ### Obtain your API credentials
 
