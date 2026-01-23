@@ -341,7 +341,7 @@ MainWidget::MainWidget(
 	}, lifetime());
 
 	Core::App().settings().aiChatWidthChanges(
-	) | rpl::start_with_next([=](int width) {
+	) | rpl::on_next([=](int width) {
 		_aiChatWidth = width;
 		updateControlsGeometry();
 	}, lifetime());

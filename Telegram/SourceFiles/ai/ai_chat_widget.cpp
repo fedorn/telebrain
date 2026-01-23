@@ -873,13 +873,13 @@ AIChatWidget::AIChatWidget(
 
 	// Handle compose controls height changes
 	_composeControls->height(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		updateControlsGeometry();
 	}, lifetime());
 
 	// Handle send requests
 	_composeControls->sendRequests(
-	) | rpl::start_with_next([=](Api::SendOptions options) {
+	) | rpl::on_next([=](Api::SendOptions options) {
 		const auto text = _composeControls->getTextWithAppliedMarkdown().text;
 		if (!text.isEmpty()) {
 			handleSendMessage(text);

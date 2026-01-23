@@ -54,7 +54,7 @@ void AI::setupContent(not_null<Window::SessionController*> controller) {
 		st::settingsSendTypePadding);
 
 	baseUrlField->changes(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		const auto value = baseUrlField->getLastText();
 		Core::App().settings().setAiChatBaseUrl(value);
 		Core::App().saveSettingsDelayed();
@@ -73,7 +73,7 @@ void AI::setupContent(not_null<Window::SessionController*> controller) {
 		st::settingsSendTypePadding);
 
 	apiKeyField->changes(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		const auto value = apiKeyField->getLastText();
 		Core::App().settings().setAiChatApiKey(value);
 		Core::App().saveSettingsDelayed();
@@ -92,7 +92,7 @@ void AI::setupContent(not_null<Window::SessionController*> controller) {
 		st::settingsSendTypePadding);
 
 	modelField->changes(
-	) | rpl::start_with_next([=] {
+	) | rpl::on_next([=] {
 		const auto value = modelField->getLastText();
 		Core::App().settings().setAiChatModel(value);
 		Core::App().saveSettingsDelayed();
