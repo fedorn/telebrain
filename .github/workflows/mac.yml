@@ -93,7 +93,7 @@ jobs:
       - name: Free up some disk space.
         run: find Libraries '(' '(' ! '(' -name '*.a' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -perm +111 ')' -type f ')' -o -empty ')' -delete
 
-      - name: Telegram Desktop build.
+      - name: Telebrain build.
         if: env.ONLY_CACHE == 'false'
         run: |
           cd $REPO_NAME/Telegram
@@ -102,9 +102,9 @@ jobs:
           if [ -n "${{ matrix.defines }}" ]; then
             DEFINE="-D ${{ matrix.defines }}=ON"
             echo Define from matrix: $DEFINE
-            echo "ARTIFACT_NAME=Telegram ${{ matrix.defines }}" >> $GITHUB_ENV
+            echo "ARTIFACT_NAME=Telebrain ${{ matrix.defines }}" >> $GITHUB_ENV
           else
-            echo "ARTIFACT_NAME=Telegram" >> $GITHUB_ENV
+            echo "ARTIFACT_NAME=Telebrain" >> $GITHUB_ENV
           fi
 
           ./configure.sh \
@@ -123,7 +123,7 @@ jobs:
         run: |
           cd $REPO_NAME/out/Debug
           mkdir artifact
-          mv Telegram.app artifact/
+          mv Telebrain.app artifact/
           mv Updater artifact/
       - uses: actions/upload-artifact@v6
         if: env.UPLOAD_ARTIFACT == 'true'

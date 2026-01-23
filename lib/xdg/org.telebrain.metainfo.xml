@@ -106,7 +106,7 @@
     </content_rating>
     <launchable type="desktop-id">org.telebrain.desktop</launchable>
     <provides>
-        <binary>Telegram</binary>
+        <binary>Telebrain</binary>
         <dbus type="session">org.telebrain</dbus>
         <mediatype>x-scheme-handler/tg</mediatype>
         <mediatype>x-scheme-handler/tonsite</mediatype>

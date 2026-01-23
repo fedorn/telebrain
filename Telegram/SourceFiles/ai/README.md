@@ -31,7 +31,7 @@ This module provides AI chat functionality for Telebrain using OpenAI's Completi
 
 ### Building
 
-The AI chat widget is automatically included in the Telegram Desktop build when you compile the project. The module includes:
+The AI chat widget is automatically included in the Telebrain build when you compile the project. The module includes:
 
 - `ai_chat_widget.cpp` / `ai_chat_widget.h` - Main UI components
 - `openai_client.cpp` / `openai_client.h` - OpenAI API integration

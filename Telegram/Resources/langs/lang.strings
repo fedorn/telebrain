@@ -365,7 +365,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_edit_caption_attach" = "Sorry, you can't attach new media while editing a message.";
 "lng_edit_caption_voice" = "Sorry, you can't edit messages when you have an unsent voice message.";
 
-"lng_intro_about" = "Welcome to the official Telegram Desktop app.\nIt's fast and secure.";
+"lng_intro_about_telebrain" = "Welcome to the Telebrain app.\nIt's smart.";
 "lng_start_msgs" = "Start Messaging";
 
 "lng_intro_next" = "Next";

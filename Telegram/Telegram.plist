@@ -5,7 +5,9 @@
 	<key>CFBundleExecutable</key>
 	<string>@output_name@</string>
 	<key>CFBundleGetInfoString</key>
-	<string>Telegram Desktop messaging app</string>
+	<string>Telebrain messaging app</string>
+	<key>CFBundleDisplayName</key>
+	<string>Telebrain</string>
 	<key>CFBundleIconFile</key>
 	<string>Icon.icns</string>
 	<key>CFBundleIconName</key>
