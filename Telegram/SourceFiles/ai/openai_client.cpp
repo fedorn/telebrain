@@ -122,7 +122,6 @@ void OpenAIClient::handleResponse(QNetworkReply *reply) {
 	_isWaitingForResponse = false;
 
 	if (reply->error() != QNetworkReply::NoError) {
-		handleNetworkError(reply->error(), reply->errorString());
 		return;
 	}
 

@@ -34,6 +34,7 @@ https://github.com/fedorn/telebrain/blob/dev/LEGAL
 #include "history/view/history_view_element.h"
 #include <QtGui/QPainterPath>
 #include <QtGui/QTextLayout>
+#include <QtGui/QTextOption>
 #include <QtGui/QClipboard>
 #include <QtGui/QMouseEvent>
 #include <QtWidgets/QApplication>
@@ -45,6 +46,45 @@ namespace AI {
 
 // AI Chat background color
 const QColor kAIChatBackgroundColor(241, 241, 241);
+
+// Fills layout with word-wrapped lines and returns the size (correct for emoji/fallback fonts).
+// QTextLayout is non-copyable, so we fill a caller-provided layout and return QSize.
+[[nodiscard]] static QSize PrepareMessageTextLayout(
+		QTextLayout *layout,
+		int maxWidth) {
+	QTextOption opt;
+	opt.setWrapMode(QTextOption::WordWrap);
+	opt.setAlignment(Qt::AlignLeft | Qt::AlignTop);
+	layout->setTextOption(opt);
+
+	layout->beginLayout();
+	qreal h = 0;
+	qreal w = 0;
+
+	while (true) {
+		auto line = layout->createLine();
+		if (!line.isValid()) {
+			break;
+		}
+
+		line.setLineWidth(maxWidth);
+		line.setPosition(QPointF(0, h));
+
+		h += line.height();
+		w = std::max(w, line.naturalTextWidth());
+	}
+	layout->endLayout();
+
+	return QSize(
+		static_cast<int>(std::ceil(w)),
+		static_cast<int>(std::ceil(h)));
+}
+
+[[nodiscard]] static QSize MessageTextSize(const QString &text, int maxWidth) {
+	QTextLayout tempLayout(text, st::msgFont);
+	return PrepareMessageTextLayout(&tempLayout, maxWidth);
+}
+
 class MessagesWidget : public Ui::RpWidget {
 public:
 	MessagesWidget(
@@ -113,28 +153,30 @@ protected:
 		const auto msgPadding = st::msgPadding;
 		const auto msgMargin = st::msgMargin;
 
+		const auto maxTextW = messagesRect.width()
+			- msgMargin.left() - msgMargin.right()
+			- msgPadding.left() - msgPadding.right();
+
 		for (size_t i = 0; i < _messages.size(); ++i) {
 			const auto &message = _messages[i];
-			
-			// Calculate text size
-			p.setFont(st::msgFont);
-			const auto textBounds = QRect(0, 0, messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right(), 1000);
-			const auto textSize = p.fontMetrics().boundingRect(textBounds, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, message.text);
-			
-			// Calculate bubble dimensions
-			const auto bubbleWidth = textSize.width() + msgPadding.left() + msgPadding.right();
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
+
+			QTextLayout layout(message.text, st::msgFont);
+			const auto textSize = PrepareMessageTextLayout(&layout, maxTextW);
+
+			// Calculate bubble dimensions from layout (correct for emoji/fallback fonts)
+			const auto bubbleWidth = textSize.width()
+				+ msgPadding.left() + msgPadding.right();
+			const auto bubbleHeight = textSize.height()
+				+ msgPadding.top() + msgPadding.bottom();
+
 			// Position bubble (user messages on right, AI messages on left)
 			int bubbleX;
 			if (message.isFromUser) {
-				// User message on the right
 				bubbleX = messagesRect.right() - bubbleWidth;
 			} else {
-				// AI message on the left
 				bubbleX = messagesRect.left();
 			}
-			
+
 			const auto bubbleRect = QRect(bubbleX, y, bubbleWidth, bubbleHeight);
 
 			// Check if this message is selected
@@ -156,20 +198,18 @@ protected:
 				},
 			});
 
-			// Draw message text with selection highlighting
+			// Draw message text with QTextLayout (and selection via FormatRange)
 			const auto &messageStyle = _chatStyle->messageStyle(message.isFromUser, isSelected);
 			const auto textRect = bubbleRect.marginsRemoved(msgPadding);
-			
-			// Check if this message has text selection
-			const auto hasSelection = (_selectedMessageIndex == i) && !_textSelection.empty();
-			
-			if (hasSelection) {
-				// Draw text with selection highlighting
-				drawTextWithSelection(p, textRect, message.text, _textSelection, messageStyle);
-			} else {
-				// Draw normal text using the same approach for consistency
-				drawTextWithSelection(p, textRect, message.text, TextSelection(), messageStyle);
-			}
+			const auto hasSelection = (_selectedMessageIndex == static_cast<int>(i))
+				&& !_textSelection.empty();
+
+			drawTextLayoutWithSelection(
+				p,
+				textRect.topLeft(),
+				layout,
+				hasSelection ? _textSelection : TextSelection(),
+				messageStyle);
 
 			y += bubbleHeight + spacing;
 		}
@@ -438,24 +478,21 @@ private:
 	};
 
 	void updateSize() {
-		const auto availableWidth = width() > 0 ? width() : 400; // Default width if not set yet
+		const auto availableWidth = width() > 0 ? width() : 400;
 		const auto messagesRect = QRect(0, 0, availableWidth, 1000).marginsRemoved(QMargins(20, 20, 20, 20));
 		const auto spacing = 8;
 		auto y = messagesRect.top();
 
-		// Get message styling
 		const auto msgPadding = st::msgPadding;
 		const auto msgMargin = st::msgMargin;
+		const auto maxTextW = messagesRect.width()
+			- msgMargin.left() - msgMargin.right()
+			- msgPadding.left() - msgPadding.right();
 
 		for (const auto &message : _messages) {
-			// Calculate text size
-			QFontMetrics fm(st::msgFont);
-			const auto textBounds = QRect(0, 0, messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right(), 1000);
-			const auto textSize = fm.boundingRect(textBounds, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, message.text);
-			
-			// Calculate bubble dimensions
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
+			const auto textSize = MessageTextSize(message.text, maxTextW);
+			const auto bubbleHeight = textSize.height()
+				+ msgPadding.top() + msgPadding.bottom();
 			y += bubbleHeight + spacing;
 		}
 
@@ -509,39 +546,33 @@ private:
 		const auto spacing = 8;
 		auto y = messagesRect.top();
 
-		// Get message styling
 		const auto msgPadding = st::msgPadding;
 		const auto msgMargin = st::msgMargin;
+		const auto maxTextW = messagesRect.width()
+			- msgMargin.left() - msgMargin.right()
+			- msgPadding.left() - msgPadding.right();
 
 		for (size_t i = 0; i < _messages.size(); ++i) {
 			const auto &message = _messages[i];
-			
-			// Calculate text size
-			QFontMetrics fm(st::msgFont);
-			const auto textBounds = QRect(0, 0, messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right(), 1000);
-			const auto textSize = fm.boundingRect(textBounds, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, message.text);
-			
-			// Calculate bubble dimensions
-			const auto bubbleWidth = textSize.width() + msgPadding.left() + msgPadding.right();
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
-			// Position bubble
+			const auto textSize = MessageTextSize(message.text, maxTextW);
+			const auto bubbleWidth = textSize.width()
+				+ msgPadding.left() + msgPadding.right();
+			const auto bubbleHeight = textSize.height()
+				+ msgPadding.top() + msgPadding.bottom();
+
 			int bubbleX;
 			if (message.isFromUser) {
 				bubbleX = messagesRect.right() - bubbleWidth;
 			} else {
 				bubbleX = messagesRect.left();
 			}
-			
+
 			const auto bubbleRect = QRect(bubbleX, y, bubbleWidth, bubbleHeight);
-			
 			if (bubbleRect.contains(point)) {
 				return static_cast<int>(i);
 			}
-			
 			y += bubbleHeight + spacing;
 		}
-		
 		return -1;
 	}
 
@@ -550,39 +581,30 @@ private:
 		const auto spacing = 8;
 		auto currentY = messagesRect.top();
 
-		// Get message styling
 		const auto msgPadding = st::msgPadding;
 		const auto msgMargin = st::msgMargin;
+		const auto maxTextW = messagesRect.width()
+			- msgMargin.left() - msgMargin.right()
+			- msgPadding.left() - msgPadding.right();
 
 		for (size_t i = 0; i < _messages.size(); ++i) {
 			const auto &message = _messages[i];
-			
-			// Calculate text size
-			QFontMetrics fm(st::msgFont);
-			const auto textBounds = QRect(0, 0, messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right(), 1000);
-			const auto textSize = fm.boundingRect(textBounds, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, message.text);
-			
-			// Calculate bubble dimensions
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
-			// Check if the Y coordinate falls within this message's vertical range
+			const auto textSize = MessageTextSize(message.text, maxTextW);
+			const auto bubbleHeight = textSize.height()
+				+ msgPadding.top() + msgPadding.bottom();
+
 			if (y >= currentY && y < currentY + bubbleHeight) {
 				return static_cast<int>(i);
 			}
-			
 			currentY += bubbleHeight + spacing;
 		}
-		
-		// If Y is above the first message, return the first message
+
 		if (y < messagesRect.top() && !_messages.empty()) {
 			return 0;
 		}
-		
-		// If Y is below the last message, return the last message
 		if (y >= currentY && !_messages.empty()) {
 			return static_cast<int>(_messages.size() - 1);
 		}
-		
 		return -1;
 	}
 
@@ -595,39 +617,33 @@ private:
 		const auto spacing = 8;
 		auto y = messagesRect.top();
 
-		// Get message styling
 		const auto msgPadding = st::msgPadding;
 		const auto msgMargin = st::msgMargin;
+		const auto maxTextW = messagesRect.width()
+			- msgMargin.left() - msgMargin.right()
+			- msgPadding.left() - msgPadding.right();
 
 		for (int i = 0; i <= messageIndex; ++i) {
 			const auto &message = _messages[i];
-			
-			// Calculate text size
-			QFontMetrics fm(st::msgFont);
-			const auto textBounds = QRect(0, 0, messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right(), 1000);
-			const auto textSize = fm.boundingRect(textBounds, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, message.text);
-			
-			// Calculate bubble dimensions
-			const auto bubbleWidth = textSize.width() + msgPadding.left() + msgPadding.right();
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
-			// Position bubble
+			const auto textSize = MessageTextSize(message.text, maxTextW);
+			const auto bubbleWidth = textSize.width()
+				+ msgPadding.left() + msgPadding.right();
+			const auto bubbleHeight = textSize.height()
+				+ msgPadding.top() + msgPadding.bottom();
+
 			int bubbleX;
 			if (message.isFromUser) {
 				bubbleX = messagesRect.right() - bubbleWidth;
 			} else {
 				bubbleX = messagesRect.left();
 			}
-			
+
 			const auto bubbleRect = QRect(bubbleX, y, bubbleWidth, bubbleHeight);
-			
 			if (i == messageIndex) {
 				return bubbleRect.marginsRemoved(msgPadding);
 			}
-			
 			y += bubbleHeight + spacing;
 		}
-		
 		return QRect();
 	}
 
@@ -635,24 +651,28 @@ private:
 		if (text.isEmpty()) {
 			return 0;
 		}
-		
-		// Create a Ui::Text::String to use Telegram's text system
-		Ui::Text::String textString;
-		textString.setText(st::messageTextStyle, text);
-		
-		// Use the same approach as Telegram's history view
-		Ui::Text::StateRequest request;
-		request.flags = Ui::Text::StateRequest::Flag::LookupSymbol;
-		
-		const auto state = textString.getState(point, textRect.width(), request);
-		
-		// Handle the afterSymbol flag like Telegram does
-		auto symbol = state.symbol;
-		if (state.afterSymbol && symbol < text.length()) {
-			++symbol;
+
+		QTextLayout layout(text, st::msgFont);
+		(void)PrepareMessageTextLayout(&layout, textRect.width());
+		const QPointF localPoint(
+			point.x() - textRect.x(),
+			point.y() - textRect.y());
+
+		int pos = 0;
+		for (int i = 0; i < layout.lineCount(); ++i) {
+			const auto line = layout.lineAt(i);
+			const qreal lineY = line.y();
+			const qreal lineBottom = lineY + line.height();
+
+			if (localPoint.y() < lineY) {
+				return pos;
+			}
+			if (localPoint.y() < lineBottom) {
+				return pos + line.xToCursor(localPoint.x());
+			}
+			pos += line.textLength();
 		}
-		
-		return symbol;
+		return text.length();
 	}
 
 	TextSelection adjustSelectionToWords(const QString &text, const TextSelection &selection) const {
@@ -769,23 +789,32 @@ private:
 		return TextSelection(start, end);
 	}
 
-	void drawTextWithSelection(Painter &p, const QRect &rect, const QString &text, const TextSelection &selection, const Ui::MessageStyle &style) {
-		// Create a Ui::Text::String to use Telegram's text system
-		Ui::Text::String textString;
-		textString.setText(st::messageTextStyle, text);
-		
-		// Set the text color for the painter
-		p.setPen(style.historyTextFg);
+	void drawTextLayoutWithSelection(
+			Painter &p,
+			const QPoint &position,
+			QTextLayout &layout,
+			const TextSelection &selection,
+			const Ui::MessageStyle &style) {
+		p.setPen(style.historyTextFg->c);
 		p.setFont(st::msgFont);
-		
-		// Draw the text with selection using the same approach as Telegram's history view
-		textString.draw(p, {
-			.position = rect.topLeft(),
-			.availableWidth = rect.width(),
-			.palette = &style.textPalette,
-			.selection = selection,
-			.useFullWidth = true,
-		});
+
+		QVector<QTextLayout::FormatRange> ranges;
+		if (!selection.empty()) {
+			QTextCharFormat fmt;
+			fmt.setBackground(style.textPalette.selectBg->c);
+			fmt.setForeground(style.textPalette.selectFg->c);
+
+			QTextLayout::FormatRange fr;
+			fr.start = selection.from;
+			fr.length = selection.to - selection.from;
+			fr.format = fmt;
+			ranges.push_back(fr);
+		}
+
+		p.save();
+		p.translate(position);
+		layout.draw(&p, QPointF(0, 0), ranges);
+		p.restore();
 	}
 
 	QString getSelectedText() const {
