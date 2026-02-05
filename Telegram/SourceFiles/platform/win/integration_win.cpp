@@ -114,7 +114,7 @@ void WindowsIntegration::refreshCustomJumpList() {
 		}
 		auto titlePropVar = PROPVARIANT();
 		hr = InitPropVariantFromString(
-			tr::lng_quit_from_tray(tr::now).toStdWString().c_str(),
+			tr::lng_quit_from_tray_telebrain(tr::now).toStdWString().c_str(),
 			&titlePropVar);
 		if (SUCCEEDED(hr)) {
 			hr = propertyStore->SetValue(PKEY_Title, titlePropVar);

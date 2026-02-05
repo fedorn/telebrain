@@ -28,9 +28,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 "lng_disable_notifications_from_tray" = "Disable notifications";
 "lng_enable_notifications_from_tray" = "Enable notifications";
-"lng_open_from_tray" = "Open Telegram";
+"lng_open_from_tray_telebrain" = "Open Telebrain";
 "lng_minimize_to_tray" = "Minimize to Tray";
-"lng_quit_from_tray" = "Quit Telegram";
+"lng_quit_from_tray_telebrain" = "Quit Telebrain";
 "lng_tray_icon_text" = "Telegram is still running here,\nyou can change this in Settings.\nIf it disappears from the tray,\nyou can drag it back from the hidden icons.";
 
 // For lng_month_year or plain month name.
