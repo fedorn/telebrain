@@ -40,6 +40,14 @@ Or, to create a debug build, run (also using [your **api_id** and **api_hash**](
 
 The built files will be in the `out` directory.
 
+#### Optional: Reduce binary size
+
+If you want a smaller production-like binary (by removing debug symbols), run:
+
+    strip -s out/Release/Telebrain
+
+This command will shrink the executable by removing all debug and symbol information. (In some environments you may need to install `binutils` first: `sudo apt install binutils`.)
+
 ### Visual Studio Code integration
 
 Ensure you've followed the instruction up to the [**Clone source code and prepare libraries**](#clone-source-code-and-prepare-libraries) step at least.
