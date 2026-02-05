@@ -279,10 +279,10 @@ QString OpenAIClient::getChatContext() const {
 QJsonObject OpenAIClient::createRequestBody(const QJsonArray &messages) const {
 	QJsonObject requestBody;
 	
-	// Get model from settings, default to gpt-5 if not set
+	// Get model from settings, default to gpt-5.2 if not set
 	QString model = Core::App().settings().aiChatModel();
 	if (model.isEmpty()) {
-		model = "gpt-5";
+		model = "gpt-5.2";
 	}
 	
 	requestBody["model"] = model;

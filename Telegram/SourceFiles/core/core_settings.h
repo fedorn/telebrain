@@ -1070,7 +1070,7 @@ private:
 	rpl::event_stream<bool> _aiChatEnabledValue;
 	rpl::variable<QString> _aiChatBaseUrl = QString("https://api.openai.com/v1");
 	rpl::variable<QString> _aiChatApiKey;
-	rpl::variable<QString> _aiChatModel = QString("gpt-5");
+	rpl::variable<QString> _aiChatModel = QString("gpt-5.2");
 	int _thirdSectionExtendedBy = -1; // per-window
 	rpl::variable<float64> _dialogsWithChatWidthRatio; // per-window
 	rpl::variable<float64> _dialogsNoChatWidthRatio; // per-window

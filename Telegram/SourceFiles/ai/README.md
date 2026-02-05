@@ -4,7 +4,7 @@ This module provides AI chat functionality for Telebrain using OpenAI's Completi
 
 ## Features
 
-- Real-time chat with OpenAI's GPT-5 model or any other Completions API-compatible model.
+- Real-time chat with OpenAI's GPT-5.2 model or any other Completions API-compatible model.
 - Conversation history management with context awareness
 - Error handling and user feedback
 - Loading indicators ("🤔 Thinking..." state)
@@ -75,7 +75,7 @@ public:
 
 The widget uses OpenAI's Chat Completions API (`/v1/chat/completions`) with the following features:
 
-- **Model**: By default GPT-5
+- **Model**: By default GPT-5.2
 - **Conversation History**: Last 100 messages to manage token limits
 - **System Message**: Includes user information and chat context
 - **Timeout**: 30-second request timeout
