@@ -469,8 +469,11 @@ void InstallLauncher() {
 	static const auto DisabledByEnv = !qEnvironmentVariableIsEmpty(
 		"DESKTOPINTEGRATION");
 
+	// Telegram Desktop:
 	// don't update desktop file for alpha version or if updater is disabled
-	if (cAlphaVersion() || Core::UpdaterDisabled() || DisabledByEnv) {
+	// if (cAlphaVersion() || Core::UpdaterDisabled() || DisabledByEnv) {
+	// Telebrain: generate desktop file when updater is disabled
+	if (cAlphaVersion() || DisabledByEnv) {
 		return;
 	}
 
@@ -670,16 +673,19 @@ bool SkipTaskbarSupported() {
 }
 
 QString ExecutablePathForShortcuts() {
-	if (Core::UpdaterDisabled()) {
-		const auto &arguments = Core::Launcher::Instance().arguments();
-		if (!arguments.isEmpty()) {
-			const auto result = QFileInfo(arguments.first()).fileName();
-			if (!result.isEmpty()) {
-				return result;
-			}
-		}
-		return cExeName();
-	}
+	// Telegram Desktop:
+	// when updater is disabled, use the first argument as the executable path
+	// if (Core::UpdaterDisabled()) {
+	// 	const auto &arguments = Core::Launcher::Instance().arguments();
+	// 	if (!arguments.isEmpty()) {
+	// 		const auto result = QFileInfo(arguments.first()).fileName();
+	// 		if (!result.isEmpty()) {
+	// 			return result;
+	// 		}
+	// 	}
+	// 	return cExeName();
+	// }
+	// Telebrain: always use the full executable path
 	return cExeDir() + cExeName();
 }
 
