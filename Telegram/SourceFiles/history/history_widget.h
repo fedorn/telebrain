@@ -268,6 +268,7 @@ public:
 
 	void activate();
 	void setInnerFocus();
+	void setFocusToComposeOrList(); // Telebrain: focus compose field or message list (e.g. when hiding AI chat).
 	[[nodiscard]] rpl::producer<> cancelRequests() const {
 		return _cancelRequests.events();
 	}

@@ -2082,6 +2082,20 @@ void HistoryWidget::setInnerFocus() {
 	}
 }
 
+// Telebrain: focus compose field or message list so focus goes to "write a message" / channel messages, not search, when hiding AI chat.
+void HistoryWidget::setFocusToComposeOrList() {
+	if (!_list || !_peer) {
+		return;
+	}
+	if (_canSendTexts && _field && !_field->isHidden()) {
+		_field->setFocus();
+	} else if (!_scroll->isHidden()) {
+		_list->setFocus();
+	} else {
+		setFocus();
+	}
+}
+
 bool HistoryWidget::notify_switchInlineBotButtonReceived(
 		const QString &query,
 		UserData *samePeerBot,

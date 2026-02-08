@@ -346,6 +346,16 @@ MainWidget::MainWidget(
 		updateControlsGeometry();
 	}, lifetime());
 
+	// Telebrain: when hiding AI chat, move focus to "write a message" input, not search.
+	Core::App().settings().aiChatEnabledValue(
+	) | rpl::filter([=](bool enabled) { return !enabled; }) | rpl::on_next([=] {
+		crl::on_main(this, [=] {
+			if (_history->peer()) {
+				_history->setFocusToComposeOrList();
+			}
+		});
+	}, lifetime());
+
 	session().changes().historyUpdates(
 		Data::HistoryUpdate::Flag::MessageSent
 	) | rpl::on_next([=](const Data::HistoryUpdate &update) {
