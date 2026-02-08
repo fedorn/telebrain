@@ -45,6 +45,12 @@ namespace AI {
 
 // AI Chat background color
 const QColor kAIChatBackgroundColor(241, 241, 241);
+
+// Layout constants for message list (shared by sizing, hit-test, paint)
+constexpr int kMessagesMargin = 20;
+constexpr int kMessageSpacing = 8;
+constexpr int kBottomMargin = 40;
+
 class MessagesWidget : public Ui::RpWidget {
 public:
 	MessagesWidget(
@@ -102,45 +108,19 @@ public:
 protected:
 	void paintEvent(QPaintEvent *e) override {
 		Painter p(this);
-		// Use a custom light blue background for AI chat
 		p.fillRect(rect(), kAIChatBackgroundColor);
 
-		const auto messagesRect = rect().marginsRemoved(QMargins(20, 20, 20, 20));
-		const auto spacing = 8;
+		const auto messagesRect = getMessagesRect();
+		const auto msgPadding = st::msgPadding;
 		auto y = messagesRect.top();
 
-		// Get message styling
-		const auto msgPadding = st::msgPadding;
-		const auto msgMargin = st::msgMargin;
-
-		const auto textAvailableWidth = messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right();
-		const auto maxBubbleWidth = messagesRect.width() - msgMargin.left() - msgMargin.right();
 		for (size_t i = 0; i < _messages.size(); ++i) {
 			const auto &message = _messages[i];
-			
-			// Calculate text size using same engine as drawing (fixes emoji/last-line overflow)
-			const auto textSize = getTextSizeForBubble(message.text, textAvailableWidth);
-			const auto bubbleWidth = std::min(
-				textSize.width() + msgPadding.left() + msgPadding.right(),
-				maxBubbleWidth);
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
-			// Position bubble (user messages on right, AI messages on left)
-			int bubbleX;
-			if (message.isFromUser) {
-				// User message on the right
-				bubbleX = messagesRect.right() - bubbleWidth;
-			} else {
-				// AI message on the left
-				bubbleX = messagesRect.left();
-			}
-			
-			const auto bubbleRect = QRect(bubbleX, y, bubbleWidth, bubbleHeight);
+			const auto layout = computeLayoutForMessage(messagesRect, y, message);
+			const auto bubbleRect = layout.bubbleRect;
+			y = layout.nextY;
 
-			// Check if this message is selected
 			const auto isSelected = _selectedMessages.find(static_cast<int>(i)) != _selectedMessages.end();
-
-			// Use proper bubble painting with ChatStyle
 			Ui::PaintBubble(p, Ui::SimpleBubble{
 				.st = _chatStyle.get(),
 				.geometry = bubbleRect,
@@ -156,27 +136,14 @@ protected:
 				},
 			});
 
-			// Draw message text with selection highlighting
 			const auto &messageStyle = _chatStyle->messageStyle(message.isFromUser, isSelected);
 			const auto textRect = bubbleRect.marginsRemoved(msgPadding);
-			
-			// Check if this message has text selection
-			const auto hasSelection = (_selectedMessageIndex == i) && !_textSelection.empty();
-			
-			if (hasSelection) {
-				// Draw text with selection highlighting
-				drawTextWithSelection(p, textRect, message.text, _textSelection, messageStyle);
-			} else {
-				// Draw normal text using the same approach for consistency
-				drawTextWithSelection(p, textRect, message.text, TextSelection(), messageStyle);
-			}
-
-			y += bubbleHeight + spacing;
+			const auto hasSelection = (_selectedMessageIndex == static_cast<int>(i)) && !_textSelection.empty();
+			drawTextWithSelection(p, textRect, message.text, hasSelection ? _textSelection : TextSelection(), messageStyle);
 		}
 	}
 
 	void mousePressEvent(QMouseEvent *e) override {
-		qDebug() << "MessagesWidget::mousePressEvent - button:" << e->button() << "pos:" << e->pos();
 		if (e->button() == Qt::LeftButton) {
 			const auto messageIndex = findMessageAtPoint(e->pos());
 			if (messageIndex >= 0) {
@@ -204,7 +171,8 @@ protected:
 				_mouseTextSymbol = static_cast<uint16>(textPos);
 				if (_clickCount == 3) {
 					// Triple-click: select paragraph
-					auto selection = TextSelection(textPos, textPos); 
+					_pressMessageIndex = messageIndex;
+					auto selection = TextSelection(textPos, textPos);
 					_textSelection = adjustSelectionToParagraphs(message.text, selection);
 					_mouseSelectType = TextSelectType::Paragraphs;
 				} else {
@@ -300,7 +268,6 @@ protected:
 	}
 
 	void mouseReleaseEvent(QMouseEvent *e) override {
-		qDebug() << "MessagesWidget::mouseReleaseEvent - button:" << e->button() << "pos:" << e->pos() << "mouseAction:" << static_cast<int>(_mouseAction);
 		if (e->button() == Qt::LeftButton && _mouseAction == MouseAction::Selecting) {
 			// Only clear selection if it's empty and we're not in a special selection mode
 			if (_textSelection.from == _textSelection.to && _mouseSelectType == TextSelectType::Letters) {
@@ -320,28 +287,16 @@ protected:
 			
 			_inMessageSelectionMode = false; // Reset message selection mode
 			
-			// Copy to selection clipboard if supported
 			if (QApplication::clipboard()->supportsSelection()) {
-				if (!_textSelection.empty()) {
-					const auto selectedText = getSelectedText();
-					if (!selectedText.isEmpty()) {
-						QApplication::clipboard()->setText(selectedText, QClipboard::Selection);
-					}
-				} else if (!_selectedMessages.empty()) {
-					const auto selectedText = getSelectedMessagesText();
-					if (!selectedText.isEmpty()) {
-						QApplication::clipboard()->setText(selectedText, QClipboard::Selection);
-					}
+				const auto text = getCopyableSelectionText();
+				if (!text.isEmpty()) {
+					QApplication::clipboard()->setText(text, QClipboard::Selection);
 				}
 			}
-		} else if (e->button() == Qt::LeftButton) {
-			// Left button release but not in selecting mode - don't reset paragraph selection mode here
-			// Let it persist for continued paragraph selection
 		}
 	}
 
 	void mouseDoubleClickEvent(QMouseEvent *e) override {
-		qDebug() << "MessagesWidget::mouseDoubleClickEvent - button:" << e->button() << "pos:" << e->pos();
 		if (e->button() == Qt::LeftButton) {
 			const auto messageIndex = findMessageAtPoint(e->pos());
 			if (messageIndex >= 0) {
@@ -364,10 +319,9 @@ protected:
 				// Set up selection state
 				_selectedMessageIndex = messageIndex;
 				_mouseTextSymbol = static_cast<uint16>(textPos);
-				_mouseAction = MouseAction::Selecting; // Set mouse action for proper state management
-				_inMessageSelectionMode = false; // Ensure we're in text selection mode
-				
-				qDebug() << "MouseSelectType:" << (_mouseSelectType == TextSelectType::Letters ? "Letters" : (_mouseSelectType == TextSelectType::Words ? "Words" : "Paragraphs"));
+				_mouseAction = MouseAction::Selecting;
+				_inMessageSelectionMode = false;
+
 				// If we're already in paragraph selection mode, preserve existing selection
 				if (_mouseSelectType == TextSelectType::Paragraphs) {
 					// Select paragraph at position using the paragraph selection logic
@@ -396,15 +350,9 @@ protected:
 
 	void keyPressEvent(QKeyEvent *e) override {
 		if (e == QKeySequence::Copy) {
-			QString textToCopy;
-			if (!_textSelection.empty()) {
-				textToCopy = getSelectedText();
-			} else if (!_selectedMessages.empty()) {
-				textToCopy = getSelectedMessagesText();
-			}
-			
-			if (!textToCopy.isEmpty()) {
-				QApplication::clipboard()->setText(textToCopy);
+			const auto text = getCopyableSelectionText();
+			if (!text.isEmpty()) {
+				QApplication::clipboard()->setText(text);
 			}
 			e->accept();
 		} else if (e->key() == Qt::Key_Escape) {
@@ -437,34 +385,62 @@ private:
 		Selecting,
 	};
 
-	void updateSize() {
-		const auto availableWidth = width() > 0 ? width() : 400; // Default width if not set yet
-		const auto messagesRect = QRect(0, 0, availableWidth, 1000).marginsRemoved(QMargins(20, 20, 20, 20));
-		const auto spacing = 8;
-		auto y = messagesRect.top();
+	struct MessageBubbleLayout {
+		QRect bubbleRect;
+		int nextY = 0;
+	};
 
-		// Get message styling
+	QRect getMessagesRect() const {
+		const auto r = width() > 0 ? rect() : QRect(0, 0, 400, 1000);
+		return r.marginsRemoved(QMargins(kMessagesMargin, kMessagesMargin, kMessagesMargin, kMessagesMargin));
+	}
+
+	MessageBubbleLayout computeLayoutForMessage(const QRect &messagesRect, int y, const MessageData &message) const {
 		const auto msgPadding = st::msgPadding;
 		const auto msgMargin = st::msgMargin;
-
 		const auto textAvailableWidth = messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right();
-		for (const auto &message : _messages) {
-			// Calculate text size using same engine as drawing (fixes emoji/last-line overflow)
-			const auto textSize = getTextSizeForBubble(message.text, textAvailableWidth);
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
-			y += bubbleHeight + spacing;
-		}
+		const auto maxBubbleWidth = messagesRect.width() - msgMargin.left() - msgMargin.right();
 
-		// Calculate exact height needed - remove the last spacing if there are messages
-		const auto totalHeight = _messages.empty() ? 0 : (y - messagesRect.top() - spacing + 40); // Add 40px bottom margin for space above compose controls
-		
-		// Set the exact height needed
-		if (width() > 0) {
-			resize(width(), totalHeight);
-		} else {
-			resize(availableWidth, totalHeight);
+		const auto textSize = getTextSizeForBubble(message.text, textAvailableWidth);
+		const auto bubbleWidth = std::min(
+			textSize.width() + msgPadding.left() + msgPadding.right(),
+			maxBubbleWidth);
+		const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
+
+		const int bubbleX = message.isFromUser
+			? (messagesRect.right() - bubbleWidth)
+			: messagesRect.left();
+		const auto bubbleRect = QRect(bubbleX, y, bubbleWidth, bubbleHeight);
+		return { bubbleRect, y + bubbleHeight + kMessageSpacing };
+	}
+
+	QRect getMessageBubbleRect(int messageIndex) const {
+		if (messageIndex < 0 || messageIndex >= static_cast<int>(_messages.size())) {
+			return QRect();
 		}
+		const auto messagesRect = getMessagesRect();
+		auto y = messagesRect.top();
+		for (int i = 0; i <= messageIndex; ++i) {
+			const auto layout = computeLayoutForMessage(messagesRect, y, _messages[i]);
+			if (i == messageIndex) {
+				return layout.bubbleRect;
+			}
+			y = layout.nextY;
+		}
+		return QRect();
+	}
+
+	void updateSize() {
+		const auto availableWidth = width() > 0 ? width() : 400;
+		const QRect area(0, 0, availableWidth, 1000);
+		const auto messagesRect = area.marginsRemoved(QMargins(kMessagesMargin, kMessagesMargin, kMessagesMargin, kMessagesMargin));
+		auto y = messagesRect.top();
+		for (const auto &message : _messages) {
+			const auto layout = computeLayoutForMessage(messagesRect, y, message);
+			y = layout.nextY;
+		}
+		const auto totalHeight = _messages.empty() ? 0 : (y - messagesRect.top() - kMessageSpacing + kBottomMargin);
+		resize(availableWidth, totalHeight);
 	}
 
 	void updateMessageSelection(int fromIndex, int toIndex) {
@@ -502,127 +478,36 @@ private:
 	}
 
 	int findMessageAtPoint(const QPoint &point) const {
-		const auto messagesRect = rect().marginsRemoved(QMargins(20, 20, 20, 20));
-		const auto spacing = 8;
-		auto y = messagesRect.top();
-
-		// Get message styling
-		const auto msgPadding = st::msgPadding;
-		const auto msgMargin = st::msgMargin;
-
-		const auto textAvailableWidth = messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right();
-		const auto maxBubbleWidth = messagesRect.width() - msgMargin.left() - msgMargin.right();
 		for (size_t i = 0; i < _messages.size(); ++i) {
-			const auto &message = _messages[i];
-			
-			// Calculate text size using same engine as drawing (fixes emoji/last-line overflow)
-			const auto textSize = getTextSizeForBubble(message.text, textAvailableWidth);
-			const auto bubbleWidth = std::min(
-				textSize.width() + msgPadding.left() + msgPadding.right(),
-				maxBubbleWidth);
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
-			// Position bubble
-			int bubbleX;
-			if (message.isFromUser) {
-				bubbleX = messagesRect.right() - bubbleWidth;
-			} else {
-				bubbleX = messagesRect.left();
-			}
-
-			const auto bubbleRect = QRect(bubbleX, y, bubbleWidth, bubbleHeight);
-			
-			if (bubbleRect.contains(point)) {
+			if (getMessageBubbleRect(static_cast<int>(i)).contains(point)) {
 				return static_cast<int>(i);
 			}
-			
-			y += bubbleHeight + spacing;
 		}
-		
 		return -1;
 	}
 
 	int findMessageAtY(int y) const {
-		const auto messagesRect = rect().marginsRemoved(QMargins(20, 20, 20, 20));
-		const auto spacing = 8;
+		const auto messagesRect = getMessagesRect();
 		auto currentY = messagesRect.top();
-
-		// Get message styling
-		const auto msgPadding = st::msgPadding;
-		const auto msgMargin = st::msgMargin;
-		const auto textAvailableWidth = messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right();
-
 		for (size_t i = 0; i < _messages.size(); ++i) {
-			const auto &message = _messages[i];
-			
-			// Calculate text size using same engine as drawing (fixes emoji/last-line overflow)
-			const auto textSize = getTextSizeForBubble(message.text, textAvailableWidth);
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
-			// Check if the Y coordinate falls within this message's vertical range
-			if (y >= currentY && y < currentY + bubbleHeight) {
+			const auto layout = computeLayoutForMessage(messagesRect, currentY, _messages[i]);
+			if (y >= layout.bubbleRect.top() && y < layout.bubbleRect.bottom()) {
 				return static_cast<int>(i);
 			}
-			
-			currentY += bubbleHeight + spacing;
+			currentY = layout.nextY;
 		}
-		
-		// If Y is above the first message, return the first message
 		if (y < messagesRect.top() && !_messages.empty()) {
 			return 0;
 		}
-		
-		// If Y is below the last message, return the last message
-		if (y >= currentY && !_messages.empty()) {
+		if (!_messages.empty() && y >= currentY - kMessageSpacing) {
 			return static_cast<int>(_messages.size() - 1);
 		}
-		
 		return -1;
 	}
 
 	QRect getMessageTextRect(int messageIndex) const {
-		if (messageIndex < 0 || messageIndex >= static_cast<int>(_messages.size())) {
-			return QRect();
-		}
-
-		const auto messagesRect = rect().marginsRemoved(QMargins(20, 20, 20, 20));
-		const auto spacing = 8;
-		auto y = messagesRect.top();
-
-		// Get message styling
-		const auto msgPadding = st::msgPadding;
-		const auto msgMargin = st::msgMargin;
-
-		const auto textAvailableWidth = messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right();
-		const auto maxBubbleWidth = messagesRect.width() - msgMargin.left() - msgMargin.right();
-		for (int i = 0; i <= messageIndex; ++i) {
-			const auto &message = _messages[i];
-			
-			// Calculate text size using same engine as drawing (fixes emoji/last-line overflow)
-			const auto textSize = getTextSizeForBubble(message.text, textAvailableWidth);
-			const auto bubbleWidth = std::min(
-				textSize.width() + msgPadding.left() + msgPadding.right(),
-				maxBubbleWidth);
-			const auto bubbleHeight = textSize.height() + msgPadding.top() + msgPadding.bottom();
-			
-			// Position bubble
-			int bubbleX;
-			if (message.isFromUser) {
-				bubbleX = messagesRect.right() - bubbleWidth;
-			} else {
-				bubbleX = messagesRect.left();
-			}
-			
-			const auto bubbleRect = QRect(bubbleX, y, bubbleWidth, bubbleHeight);
-			
-			if (i == messageIndex) {
-				return bubbleRect.marginsRemoved(msgPadding);
-			}
-			
-			y += bubbleHeight + spacing;
-		}
-		
-		return QRect();
+		const auto bubbleRect = getMessageBubbleRect(messageIndex);
+		return bubbleRect.isEmpty() ? QRect() : bubbleRect.marginsRemoved(st::msgPadding);
 	}
 
 	int getTextPositionAtPoint(const QRect &textRect, const QPoint &point, const QString &text) const {
@@ -677,19 +562,18 @@ private:
 			return TextSelection(start, end);
 		}
 		
-		auto start = selection.from;
-		auto end = selection.to;
-		
-		// Expand start to word boundary using Telegram's word separator logic
+		auto start = qBound(0, static_cast<int>(selection.from), text.length());
+		auto end = qBound(0, static_cast<int>(selection.to), text.length());
+		if (start > end) {
+			std::swap(start, end);
+		}
+
 		while (start > 0 && !Ui::Text::IsWordSeparator(text[start - 1])) {
 			--start;
 		}
-		
-		// Expand end to word boundary using Telegram's word separator logic
 		while (end < text.length() && !Ui::Text::IsWordSeparator(text[end])) {
 			++end;
 		}
-		
 		return TextSelection(start, end);
 	}
 
@@ -734,31 +618,27 @@ private:
 			return TextSelection(start, end);
 		}
 		
-		auto start = selection.from;
-		auto end = selection.to;
-		
-		// Expand start to paragraph boundary
+		auto start = qBound(0, static_cast<int>(selection.from), text.length());
+		auto end = qBound(0, static_cast<int>(selection.to), text.length());
+		if (start > end) {
+			std::swap(start, end);
+		}
+
 		while (start > 0) {
 			if (start >= 2 && text[start - 1] == QChar::LineFeed && text[start - 2] == QChar::LineFeed) {
-				break; // Found double newline
+				break;
 			}
 			--start;
 		}
-		
-		// Expand end to paragraph boundary
 		while (end < text.length()) {
 			if (end + 1 < text.length() && text[end] == QChar::LineFeed && text[end + 1] == QChar::LineFeed) {
-				break; // Found double newline
+				break;
 			}
 			++end;
 		}
-		
-		// Ensure we have a valid selection
 		if (start >= end) {
-			// If no paragraph boundaries found, select the entire text
 			return TextSelection(0, text.length());
 		}
-		
 		return TextSelection(start, end);
 	}
 
@@ -796,15 +676,23 @@ private:
 		p.restore();
 	}
 
+	QString getCopyableSelectionText() const {
+		if (!_textSelection.empty()) {
+			return getSelectedText();
+		}
+		if (!_selectedMessages.empty()) {
+			return getSelectedMessagesText();
+		}
+		return QString();
+	}
+
 	QString getSelectedText() const {
 		if (_selectedMessageIndex < 0 || _selectedMessageIndex >= static_cast<int>(_messages.size()) || _textSelection.empty()) {
 			return QString();
 		}
-		
 		const auto &message = _messages[_selectedMessageIndex];
 		const auto from = qBound(0, static_cast<int>(_textSelection.from), static_cast<int>(message.text.length()));
 		const auto to = qBound(0, static_cast<int>(_textSelection.to), static_cast<int>(message.text.length()));
-		
 		return message.text.mid(from, to - from);
 	}
 
@@ -968,34 +856,32 @@ void AIChatWidget::handleSendMessage(const QString &text) {
 	sendToOpenAI();
 }
 
-void AIChatWidget::addUserMessage(const QString &text) {
-	// Create a simple message entry
+void AIChatWidget::addMessage(const QString &text, bool isFromUser) {
 	_messages.push_back({
 		.text = text,
-		.isFromUser = true,
+		.isFromUser = isFromUser,
 		.timestamp = base::unixtime::now()
 	});
-
-	// Update the messages widget
 	_messagesWidget->setMessages(_messages);
-	
-	// Scroll to bottom
 	_scroll->scrollToY(_scroll->scrollTopMax());
 }
 
-void AIChatWidget::addAIMessage(const QString &text) {
-	// Create a simple message entry
-	_messages.push_back({
-		.text = text,
-		.isFromUser = false,
-		.timestamp = base::unixtime::now()
-	});
+void AIChatWidget::addUserMessage(const QString &text) {
+	addMessage(text, true);
+}
 
-	// Update the messages widget
-	_messagesWidget->setMessages(_messages);
-	
-	// Scroll to bottom
-	_scroll->scrollToY(_scroll->scrollTopMax());
+void AIChatWidget::addAIMessage(const QString &text) {
+	addMessage(text, false);
+}
+
+void AIChatWidget::replaceLastAIMessageOrAdd(const QString &text) {
+	if (!_messages.empty() && !_messages.back().isFromUser && _messages.back().text == kThinkingMessage) {
+		_messages.back().text = text;
+		_messagesWidget->setMessages(_messages);
+		_scroll->scrollToY(_scroll->scrollTopMax());
+	} else {
+		addAIMessage(text);
+	}
 }
 
 void AIChatWidget::paintEvent(QPaintEvent *e) {
@@ -1069,29 +955,10 @@ void AIChatWidget::sendToOpenAI() {
 		_openaiClient->sendChatCompletion(
 			_messages,
 			[this](const QString &response) {
-				// Replace the "thinking" message with the actual response
-				if (!_messages.empty() && _messages.back().text == kThinkingMessage) {
-					_messages.back().text = response;
-					_messagesWidget->setMessages(_messages);
-					// Scroll to bottom to show the full response
-					_scroll->scrollToY(_scroll->scrollTopMax());
-				} else {
-					// Fallback: add the AI response to the chat
-					addAIMessage(response);
-				}
+				replaceLastAIMessageOrAdd(response);
 			},
 			[this](const QString &error) {
-				// Replace the "thinking" message with the error
-				if (!_messages.empty() && _messages.back().text == kThinkingMessage) {
-					QString errorMessage = QString("❌ Error: %1").arg(error);
-					_messages.back().text = errorMessage;
-					_messagesWidget->setMessages(_messages);
-					// Scroll to bottom to show the full error message
-					_scroll->scrollToY(_scroll->scrollTopMax());
-				} else {
-					// Fallback: add error message to chat
-					addAIMessage(QString("❌ Error: %1").arg(error));
-				}
+				replaceLastAIMessageOrAdd(QString("❌ Error: %1").arg(error));
 			}
 		);
 	});

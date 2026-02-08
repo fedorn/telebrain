@@ -61,6 +61,8 @@ private:
 	void handleSendMessage(const QString &text);
 	void addUserMessage(const QString &text);
 	void addAIMessage(const QString &text);
+	void addMessage(const QString &text, bool isFromUser);
+	void replaceLastAIMessageOrAdd(const QString &text);
 	void sendToOpenAI();
 	void clearChat();
 
