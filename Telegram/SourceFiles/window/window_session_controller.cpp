@@ -2440,7 +2440,9 @@ int SessionController::dialogsSmallColumnWidth() const {
 int SessionController::minimalThreeColumnWidth() const {
 	return (_hasDialogs ? st::columnMinimalWidthLeft : 0)
 		+ st::columnMinimalWidthMain
-		+ st::columnMinimalWidthThird;
+		+ st::columnMinimalWidthThird
+		// Telebrain: add AI chat width so third column only shows when there's room for it
+		+ Core::App().settings().aiChatWidth();
 }
 
 auto SessionController::computeColumnLayout() const -> ColumnLayout {
