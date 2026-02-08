@@ -29,6 +29,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_reaction_preview.h"
 #include "history/view/history_view_quick_action.h"
 #include "history/view/history_view_emoji_interactions.h"
+#include "history/view/history_view_top_peers_selector.h"
 #include "history/history_item_components.h"
 #include "history/history_item_text.h"
 #include "payments/payments_reaction_process.h"
@@ -2307,6 +2308,28 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 			e,
 			session().data().reactions().favoriteId())) {
 		return;
+	} else if (link && link->property(kFastShareProperty).value<bool>()) {
+		if (const auto item = _dragStateItem) {
+			const auto view = viewByItem(item);
+			const auto rightSize = view->rightActionSize().value_or(QSize());
+			const auto reactionsSkip = view->embedReactionsInBubble()
+				? 0
+				: view->reactionButtonParameters({}, {}).reactionsHeight;
+			const auto top = itemTop(view)
+				+ view->height()
+				- reactionsSkip
+				- _visibleAreaTop
+				- rightSize.height();
+			const auto right = rect::right(view->innerGeometry())
+				- st::historyFastShareLeft
+				- rightSize.width();
+			HistoryView::ShowTopPeersSelector(
+				this,
+				_controller->uiShow(),
+				item->fullId(),
+				parentWidget()->mapToGlobal(QPoint(right, top)));
+			return;
+		}
 	}
 	auto selectedState = getSelectionState();
 
@@ -4694,6 +4717,12 @@ void HistoryInner::refreshAboutView(bool force) {
 				_history->delegateMixin()->delegate());
 			_aboutView->refreshRequests() | rpl::on_next([=] {
 				updateBotInfo();
+			}, _aboutView->lifetime());
+			_aboutView->destroyRequests() | rpl::on_next([=] {
+				crl::on_main(this, [=] {
+					refreshAboutView(true);
+					update();
+				});
 			}, _aboutView->lifetime());
 			_aboutView->sendIntroSticker() | rpl::start_to_stream(
 				_sendIntroSticker,
