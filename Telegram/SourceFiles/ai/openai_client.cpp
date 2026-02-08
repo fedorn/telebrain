@@ -12,10 +12,10 @@ https://github.com/fedorn/telebrain/blob/dev/LEGAL
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "data/data_session.h"
+#include "data/data_thread.h"
 #include "data/data_user.h"
 #include "history/history.h"
 #include "history/history_item.h"
-#include "history/view/history_view_element.h"
 #include "base/unixtime.h"
 #include <QtNetwork/QNetworkRequest>
 #include <QtNetwork/QNetworkReply>
@@ -219,61 +219,29 @@ QString OpenAIClient::getChatContext() const {
 	if (!_sessionController) {
 		return QString();
 	}
-
-	// Get the last 30 (equals to kMessagesPerPageFirst) messages from the current active chat if it's open
 	const auto activeChat = _sessionController->activeChatCurrent();
-	if (const auto history = activeChat.history()) {
-		const int maxChatMessages = 30;
-		int messageCount = 0;
-		QString chatContext = QString("\n\nCurrent chat context (last %1 messages):\n").arg(maxChatMessages);
-		
-		// Collect the latest messages in reverse order (newest first)
-		std::vector<QString> messageLines;
-		
-		// Iterate through blocks in reverse order to get the most recent messages
-		for (auto blockIt = history->blocks.rbegin(); 
-			 blockIt != history->blocks.rend() && messageCount < maxChatMessages; 
-			 ++blockIt) {
-			const auto &block = *blockIt;
-			
-			// Iterate through messages in reverse order within each block
-			for (auto msgIt = block->messages.rbegin(); 
-				 msgIt != block->messages.rend() && messageCount < maxChatMessages; 
-				 ++msgIt) {
-				const auto &element = *msgIt;
-				const auto item = element->data();
-				
-				// Only include regular text messages (skip service messages, etc.)
-				if (item->isRegular() && !item->isEmpty()) {
-					QString messageText = item->originalText().text;
-					if (!messageText.isEmpty()) {
-						QString senderName = item->displayFrom()->name();
-						QString timestamp = QDateTime::fromSecsSinceEpoch(item->date()).toString("HH:mm");
-						
-						messageLines.push_back(QString("[%1] %2: %3")
-							.arg(timestamp)
-							.arg(senderName)
-							.arg(messageText));
-						
-						messageCount++;
-					}
-				}
-			}
-		}
-		
-		// Add messages to context in chronological order (oldest first)
-		// Since we collected them newest first, we need to reverse the order
-		for (auto it = messageLines.rbegin(); it != messageLines.rend(); ++it) {
-			chatContext += *it + "\n";
-		}
-		
-		if (messageCount > 0) {
-			chatContext += "\nYou can reference this chat context when responding to the user.";
-			return chatContext;
-		}
+	const auto history = activeChat.owningHistory();
+	if (!history) {
+		return QString();
 	}
-	
-	return QString();
+	const auto thread = activeChat.thread();
+	const auto topicRootId = thread ? thread->topicRootId() : MsgId(0);
+	const int maxChatMessages = 30;
+	const auto items = history->recentMessagesForContext(topicRootId, maxChatMessages);
+	if (items.empty()) {
+		return QString();
+	}
+	QString chatContext = QString("\n\nCurrent chat context (last %1 messages):\n").arg(items.size());
+	for (const auto &item : items) {
+		QString senderName = item->displayFrom()->name();
+		QString timestamp = QDateTime::fromSecsSinceEpoch(item->date()).toString("HH:mm");
+		chatContext += QString("[%1] %2: %3\n")
+			.arg(timestamp)
+			.arg(senderName)
+			.arg(item->originalText().text);
+	}
+	chatContext += "\nYou can reference this chat context when responding to the user.";
+	return chatContext;
 }
 
 QJsonObject OpenAIClient::createRequestBody(const QJsonArray &messages) const {

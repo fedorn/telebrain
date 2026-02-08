@@ -111,6 +111,11 @@ public:
 	[[nodiscard]] std::vector<MsgId> collectMessagesFromParticipantToDelete(
 		not_null<PeerData*> participant) const;
 
+	//Telebrain: last N regular messages for context (e.g. AI); topicRootId filters to that topic when non-zero.
+	[[nodiscard]] std::vector<not_null<HistoryItem*>> recentMessagesForContext(
+		MsgId topicRootId,
+		int maxCount) const;
+
 	enum class ClearType {
 		Unload,
 		DeleteChat,

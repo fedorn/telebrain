@@ -643,6 +643,32 @@ void History::destroyMessagesByDates(TimeId minDate, TimeId maxDate) {
 	}
 }
 
+//Telebrain: recent messages from _items for AI chat context (includes topic replies not in blocks).
+std::vector<not_null<HistoryItem*>> History::recentMessagesForContext(
+		MsgId topicRootId,
+		int maxCount) const {
+	auto out = std::vector<not_null<HistoryItem*>>();
+	for (const auto &message : _items) {
+		if (!message->isRegular() || message->isEmpty()
+			|| message->originalText().text.isEmpty()) {
+			continue;
+		}
+		if (topicRootId && message->topicRootId() != topicRootId) {
+			continue;
+		}
+		out.push_back(message.get());
+	}
+	ranges::sort(out, std::greater(), [](HistoryItem *i) { return i->id; });
+	const auto n = std::min(int(out.size()), maxCount);
+	auto result = std::vector<not_null<HistoryItem*>>();
+	result.reserve(n);
+	for (int i = 0; i < n; ++i) {
+		result.push_back(out[i]);
+	}
+	ranges::sort(result, ranges::less(), [](HistoryItem *i) { return i->id; });
+	return result;
+}
+
 void History::destroyMessagesByTopic(MsgId topicRootId) {
 	auto toDestroy = std::vector<not_null<HistoryItem*>>();
 	toDestroy.reserve(_items.size());
