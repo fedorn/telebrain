@@ -108,6 +108,12 @@ public:
 		Fn<mtpRequestId(Fn<void()> finish)> generator);
 	void cancelRequest(int id);
 
+	//Telebrain: request last N messages for context (e.g. AI); calls done() when loaded.
+	void requestRecentForContext(
+		not_null<History*> history,
+		int count,
+		Fn<void()> done);
+
 	using PreparedMessage = std::variant<
 		MTPmessages_SendMessage,
 		MTPmessages_SendMedia,

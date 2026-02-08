@@ -11,6 +11,9 @@ https://github.com/fedorn/telebrain/blob/dev/LEGAL
 #include "main/main_session.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "data/data_forum_topic.h"
+#include "data/data_histories.h"
+#include "data/data_replies_list.h"
 #include "data/data_session.h"
 #include "data/data_thread.h"
 #include "data/data_user.h"
@@ -28,6 +31,8 @@ https://github.com/fedorn/telebrain/blob/dev/LEGAL
 
 namespace AI {
 
+constexpr auto kContextMessageCount = 30;
+
 OpenAIClient::OpenAIClient(QObject *parent)
 : QObject(parent)
 , _networkManager(std::make_unique<QNetworkAccessManager>()) {
@@ -37,6 +42,28 @@ OpenAIClient::~OpenAIClient() = default;
 
 void OpenAIClient::setSessionController(not_null<Window::SessionController*> controller) {
 	_sessionController = controller.get();
+}
+
+void OpenAIClient::ensureContextLoaded(std::function<void()> done) {
+	if (!_sessionController) {
+		done();
+		return;
+	}
+	const auto activeChat = _sessionController->activeChatCurrent();
+	const auto history = activeChat.owningHistory();
+	if (!history) {
+		done();
+		return;
+	}
+	const auto topic = activeChat.topic();
+	if (topic) {
+		topic->replies()->requestRecentForContext(kContextMessageCount, std::move(done));
+	} else {
+		history->owner().histories().requestRecentForContext(
+			history,
+			kContextMessageCount,
+			std::move(done));
+	}
 }
 
 void OpenAIClient::sendChatCompletion(
@@ -226,8 +253,7 @@ QString OpenAIClient::getChatContext() const {
 	}
 	const auto thread = activeChat.thread();
 	const auto topicRootId = thread ? thread->topicRootId() : MsgId(0);
-	const int maxChatMessages = 30;
-	const auto items = history->recentMessagesForContext(topicRootId, maxChatMessages);
+	const auto items = history->recentMessagesForContext(topicRootId, kContextMessageCount);
 	if (items.empty()) {
 		return QString();
 	}

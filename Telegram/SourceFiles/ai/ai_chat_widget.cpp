@@ -1081,39 +1081,41 @@ void AIChatWidget::sendToOpenAI() {
 		return; // Don't send multiple requests simultaneously
 	}
 
-	// Add a "thinking" message to show the user that the AI is processing
-	addAIMessage(kThinkingMessage);
+	// Load last 30 messages for context (main chat or topic), then send.
+	_openaiClient->ensureContextLoaded([this] {
+		// Add a "thinking" message to show the user that the AI is processing
+		addAIMessage(kThinkingMessage);
 
-	// Send the request using the OpenAI client
-	_openaiClient->sendChatCompletion(
-		_messages,
-		[this](const QString &response) {
-			// Replace the "thinking" message with the actual response
-			if (!_messages.empty() && _messages.back().text == kThinkingMessage) {
-				_messages.back().text = response;
-				_messagesWidget->setMessages(_messages);
-				// Scroll to bottom to show the full response
-				_scroll->scrollToY(_scroll->scrollTopMax());
-			} else {
-				// Fallback: add the AI response to the chat
-				addAIMessage(response);
+		// Send the request using the OpenAI client
+		_openaiClient->sendChatCompletion(
+			_messages,
+			[this](const QString &response) {
+				// Replace the "thinking" message with the actual response
+				if (!_messages.empty() && _messages.back().text == kThinkingMessage) {
+					_messages.back().text = response;
+					_messagesWidget->setMessages(_messages);
+					// Scroll to bottom to show the full response
+					_scroll->scrollToY(_scroll->scrollTopMax());
+				} else {
+					// Fallback: add the AI response to the chat
+					addAIMessage(response);
+				}
+			},
+			[this](const QString &error) {
+				// Replace the "thinking" message with the error
+				if (!_messages.empty() && _messages.back().text == kThinkingMessage) {
+					QString errorMessage = QString("❌ Error: %1").arg(error);
+					_messages.back().text = errorMessage;
+					_messagesWidget->setMessages(_messages);
+					// Scroll to bottom to show the full error message
+					_scroll->scrollToY(_scroll->scrollTopMax());
+				} else {
+					// Fallback: add error message to chat
+					addAIMessage(QString("❌ Error: %1").arg(error));
+				}
 			}
-		},
-		[this](const QString &error) {
-			// Replace the "thinking" message with the error
-			if (!_messages.empty() && _messages.back().text == kThinkingMessage) {
-				QString errorMessage = QString("❌ Error: %1").arg(error);
-				_messages.back().text = errorMessage;
-				_messagesWidget->setMessages(_messages);
-				// Scroll to bottom to show the full error message
-				_scroll->scrollToY(_scroll->scrollTopMax());
-			} else {
-				// Fallback: add error message to chat
-				QString errorMessage = QString("❌ Error: %1").arg(error);
-				addAIMessage(errorMessage);
-			}
-		}
-	);
+		);
+	});
 }
 
 void AIChatWidget::clearChat() {

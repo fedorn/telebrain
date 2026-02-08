@@ -556,6 +556,55 @@ void Histories::requestFakeChatListMessage(
 	});
 }
 
+//Telebrain: load last N messages into history for AI context.
+void Histories::requestRecentForContext(
+		not_null<History*> history,
+		int count,
+		Fn<void()> done) {
+	const auto peer = history->peer;
+	sendRequest(history, RequestType::History, [=](Fn<void()> finish) {
+		return session().api().request(MTPmessages_GetHistory(
+			peer->input(),
+			MTP_int(0), // offset_id
+			MTP_int(0), // offset_date
+			MTP_int(0), // add_offset
+			MTP_int(count),
+			MTP_int(0), // max_id
+			MTP_int(0), // min_id
+			MTP_long(0) // hash
+		)).done([=](const MTPmessages_Messages &result) {
+			auto list = QVector<MTPMessage>();
+			result.match([&](const MTPDmessages_messages &d) {
+				_owner->processUsers(d.vusers());
+				_owner->processChats(d.vchats());
+				peer->processTopics(d.vtopics());
+				list = d.vmessages().v;
+			}, [&](const MTPDmessages_messagesSlice &d) {
+				_owner->processUsers(d.vusers());
+				_owner->processChats(d.vchats());
+				peer->processTopics(d.vtopics());
+				list = d.vmessages().v;
+			}, [&](const MTPDmessages_channelMessages &d) {
+				_owner->processUsers(d.vusers());
+				_owner->processChats(d.vchats());
+				if (const auto ch = peer->asChannel()) {
+					ch->ptsReceived(d.vpts().v);
+				}
+				peer->processTopics(d.vtopics());
+				list = d.vmessages().v;
+			}, [](const MTPDmessages_messagesNotModified &) {});
+			if (!list.isEmpty()) {
+				history->addNewerSlice(list);
+			}
+			finish();
+			done();
+		}).fail([=] {
+			finish();
+			done();
+		}).send();
+	});
+}
+
 void Histories::requestGroupAround(not_null<HistoryItem*> item) {
 	const auto history = item->history();
 	const auto id = item->id;

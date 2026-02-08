@@ -65,6 +65,9 @@ public:
 
 	[[nodiscard]] bool canDeleteMyTopic() const;
 
+	//Telebrain: request last N replies for context (e.g. AI); calls done() when loaded.
+	void requestRecentForContext(int count, Fn<void()> done);
+
 	[[nodiscard]] rpl::lifetime &lifetime() {
 		return _lifetime;
 	}

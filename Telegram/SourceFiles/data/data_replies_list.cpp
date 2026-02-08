@@ -523,6 +523,38 @@ HistoryItem *RepliesList::lookupRoot() {
 	return _history->owner().message(_history->peer->id, _rootId);
 }
 
+//Telebrain: load last N replies for AI context.
+void RepliesList::requestRecentForContext(int count, Fn<void()> done) {
+	if (_creating) {
+		done();
+		return;
+	}
+	histories().sendRequest(
+		_history,
+		Histories::RequestType::History,
+		[=](Fn<void()> finish) {
+			return _history->session().api().request(MTPmessages_GetReplies(
+				_history->peer->input(),
+				MTP_int(_rootId),
+				MTP_int(0), // offset_id
+				MTP_int(0), // offset_date
+				MTP_int(0), // add_offset
+				MTP_int(count),
+				MTP_int(0), // max_id
+				MTP_int(0), // min_id
+				MTP_long(0) // hash
+			)).done([=](const MTPmessages_Messages &result) {
+				processMessagesIsEmpty(result);
+				finish();
+				done();
+			}).fail([=] {
+				finish();
+				done();
+			}).send();
+		}
+	);
+}
+
 void RepliesList::loadAround(MsgId id) {
 	Expects(!_creating);
 

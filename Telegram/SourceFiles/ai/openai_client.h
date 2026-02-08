@@ -44,7 +44,10 @@ public:
 		const std::vector<MessageData> &messages,
 		std::function<void(const QString &)> onSuccess,
 		std::function<void(const QString &)> onError);
-	
+
+	// Request last 30 messages for current chat/topic then call done (for full context).
+	void ensureContextLoaded(std::function<void()> done);
+
 	// Check if currently waiting for a response
 	bool isWaitingForResponse() const;
 
