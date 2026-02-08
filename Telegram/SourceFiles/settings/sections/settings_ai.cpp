@@ -26,7 +26,7 @@ namespace Settings {
 AI::AI(
 	QWidget *parent,
 	not_null<Window::SessionController*> controller)
-: Section(parent)
+: Section(parent, controller)
 , _controller(controller) {
 	setupContent(controller);
 }
