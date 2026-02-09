@@ -260,7 +260,7 @@ QString OpenAIClient::getChatContext() const {
 	QString chatContext = QString("\n\nCurrent chat context (last %1 messages):\n").arg(items.size());
 	for (const auto &item : items) {
 		QString senderName = item->displayFrom()->name();
-		QString timestamp = QDateTime::fromSecsSinceEpoch(item->date()).toString("HH:mm");
+		QString timestamp = QDateTime::fromSecsSinceEpoch(item->date()).toString("yyyy-MM-dd HH:mm:ss");
 		chatContext += QString("[%1] %2: %3\n")
 			.arg(timestamp)
 			.arg(senderName)
