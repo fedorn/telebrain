@@ -32,4 +32,18 @@ Go to ***BuildPath*/telebrain/Telegram** and run (using [your **api_id** and **a
 
 Then launch Xcode, open ***BuildPath*/telebrain/out/Telegram.xcodeproj** and build for Debug / Release.
 
+### Reducing app size (strip and re-sign)
+
+If you build from Xcode only (and do not run `build/build.sh`), the app binary is not stripped and can be much larger than the official Telegram Desktop (~430 MB). To reduce size: strip the executables, then re-sign the app (stripping invalidates the code signature, so the app will not launch until you re-sign).
+
+From ***BuildPath*/telebrain/out/Release**:
+
+```bash
+strip Telebrain.app/Contents/MacOS/Telebrain
+codesign --force --deep --sign - Telebrain.app --entitlements ../../Telegram/Telegram/Telegram.entitlements
+```
+
+`--sign -` is ad-hoc signing (suitable for local use). For distribution, use your Developer ID certificate instead.
+
+
 [api_credentials]: api_credentials.md
