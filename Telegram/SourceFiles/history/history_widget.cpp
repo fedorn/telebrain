@@ -409,8 +409,11 @@ HistoryWidget::HistoryWidget(
 		escape();
 	}, _field->lifetime());
 	_field->tabbed(
-	) | rpl::on_next([=] {
-		fieldTabbed();
+	) | rpl::on_next([=](not_null<bool*> handled) {
+		if (_supportAutocomplete) {
+			_supportAutocomplete->activate(_field.data());
+			*handled = true;
+		}
 	}, _field->lifetime());
 	_field->heightChanges(
 	) | rpl::on_next([=] {
@@ -7895,14 +7898,6 @@ bool HistoryWidget::showSlowmodeError() {
 	return true;
 }
 
-void HistoryWidget::fieldTabbed() {
-	if (_supportAutocomplete) {
-		_supportAutocomplete->activate(_field.data());
-	}else{
-		focusNextPrevChild(true);
-	}
-}
-
 void HistoryWidget::sendInlineResult(InlineBots::ResultSelected result) {
 	if (!_peer || !_canSendMessages) {
 		return;
@@ -9049,9 +9044,6 @@ bool HistoryWidget::cancelReply(
 			_fieldBarCancel->hide();
 			updateMouseTracking();
 		}
-		if (!keepHighlighterState) {
-			_highlighter.clear();
-		}
 		updateBotKeyboard();
 		refreshTopBarActiveChat();
 		updateCanSendMessage();
@@ -9078,6 +9070,9 @@ bool HistoryWidget::cancelReply(
 		if (_kbReplyTo) {
 			toggleKeyboard(false);
 		}
+	}
+	if (!keepHighlighterState) {
+		_highlighter.clear();
 	}
 	return wasReply;
 }
