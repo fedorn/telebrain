@@ -46,6 +46,19 @@ namespace AI {
 // AI Chat background color
 const QColor kAIChatBackgroundColor(241, 241, 241);
 
+[[nodiscard]] TextWithEntities GetTextForMessage(const MessageData &message) {
+	if (message.isFromUser) {
+		return TextWithEntities::Simple(message.text);
+	}
+	auto rich = Ui::Text::RichLangValue(message.text);
+	TextUtilities::ParseEntities(rich, TextParseLinks
+		| TextParseMentions
+		| TextParseHashtags
+		| TextParseMultiline
+		| TextParseMarkdown);
+	return rich;
+}
+
 // Layout constants for message list (shared by sizing, hit-test, paint)
 constexpr int kMessagesMargin = 20;
 constexpr int kMessageSpacing = 8;
@@ -139,7 +152,7 @@ protected:
 			const auto &messageStyle = _chatStyle->messageStyle(message.isFromUser, isSelected);
 			const auto textRect = bubbleRect.marginsRemoved(msgPadding);
 			const auto hasSelection = (_selectedMessageIndex == static_cast<int>(i)) && !_textSelection.empty();
-			drawTextWithSelection(p, textRect, message.text, hasSelection ? _textSelection : TextSelection(), messageStyle);
+			drawTextWithSelection(p, textRect, message, hasSelection ? _textSelection : TextSelection(), messageStyle);
 		}
 	}
 
@@ -164,7 +177,7 @@ protected:
 				}
 				_lastClickTime = now;
 
-				const auto textPos = getTextPositionAtPoint(textRect, localPos, message.text);
+				const auto textPos = getTextPositionAtPoint(textRect, localPos, message);
 				clearMessageSelection();
 				_selectedMessageIndex = messageIndex;
 				_mouseAction = MouseAction::Selecting;
@@ -173,7 +186,7 @@ protected:
 					// Triple-click: select paragraph
 					_pressMessageIndex = messageIndex;
 					auto selection = TextSelection(textPos, textPos);
-					_textSelection = adjustSelectionToParagraphs(message.text, selection);
+					_textSelection = adjustSelectionToParagraphs(GetTextForMessage(message).text, selection);
 					_mouseSelectType = TextSelectType::Paragraphs;
 				} else {
 					// Single click: start letter selection	
@@ -219,21 +232,17 @@ protected:
 				if (isWithinTextArea) {
 					// Continue text selection within the same message
 					const auto &message = _messages[_selectedMessageIndex];
-					const auto textPos = getTextPositionAtPoint(textRect, localPos, message.text);
-					
-					// Update selection based on selection type
+					const auto textPos = getTextPositionAtPoint(textRect, localPos, message);
+					const auto displayText = GetTextForMessage(message).text;
 					auto selection = TextSelection(
 						std::min(_mouseTextSymbol, static_cast<uint16>(textPos)),
 						std::max(_mouseTextSymbol, static_cast<uint16>(textPos))
 					);
-					
-					// Adjust selection based on type (words, paragraphs, etc.)
 					if (_mouseSelectType == TextSelectType::Words) {
-						selection = adjustSelectionToWords(message.text, selection);
+						selection = adjustSelectionToWords(displayText, selection);
 					} else if (_mouseSelectType == TextSelectType::Paragraphs) {
-						selection = adjustSelectionToParagraphs(message.text, selection);
+						selection = adjustSelectionToParagraphs(displayText, selection);
 					}
-					// For TextSelectType::Letters, use the selection as-is (no adjustment)
 					
 					_textSelection = selection;
 					clearMessageSelection();
@@ -313,25 +322,19 @@ protected:
 				// Clear any existing selections first
 				clearMessageSelection();
 				
-				// Calculate text position using Ui::Text system
-				const auto textPos = getTextPositionAtPoint(textRect, localPos, message.text);
-				
-				// Set up selection state
+				const auto textPos = getTextPositionAtPoint(textRect, localPos, message);
+				const auto displayText = GetTextForMessage(message).text;
 				_selectedMessageIndex = messageIndex;
 				_mouseTextSymbol = static_cast<uint16>(textPos);
 				_mouseAction = MouseAction::Selecting;
 				_inMessageSelectionMode = false;
-
-				// If we're already in paragraph selection mode, preserve existing selection
 				if (_mouseSelectType == TextSelectType::Paragraphs) {
-					// Select paragraph at position using the paragraph selection logic
-					auto selection = TextSelection(textPos, textPos); // Empty selection at position
-					_textSelection = adjustSelectionToParagraphs(message.text, selection);
+					auto selection = TextSelection(textPos, textPos);
+					_textSelection = adjustSelectionToParagraphs(displayText, selection);
 				} else {
-					// Set to word selection mode and select word at position
 					_mouseSelectType = TextSelectType::Words;
-					auto selection = TextSelection(textPos, textPos); // Empty selection at position
-					_textSelection = adjustSelectionToWords(message.text, selection);
+					auto selection = TextSelection(textPos, textPos);
+					_textSelection = adjustSelectionToWords(displayText, selection);
 				}
 				
 				// Ensure immediate visual feedback
@@ -401,7 +404,7 @@ private:
 		const auto textAvailableWidth = messagesRect.width() - msgMargin.left() - msgMargin.right() - msgPadding.left() - msgPadding.right();
 		const auto maxBubbleWidth = messagesRect.width() - msgMargin.left() - msgMargin.right();
 
-		const auto textSize = getTextSizeForBubble(message.text, textAvailableWidth);
+		const auto textSize = getTextSizeForBubble(message, textAvailableWidth);
 		const auto bubbleWidth = std::min(
 			textSize.width() + msgPadding.left() + msgPadding.right(),
 			maxBubbleWidth);
@@ -467,11 +470,10 @@ private:
 		if (_selectedMessages.empty()) {
 			return QString();
 		}
-
 		QStringList texts;
 		for (const auto index : _selectedMessages) {
 			if (index >= 0 && index < static_cast<int>(_messages.size())) {
-				texts.append(_messages[index].text);
+				texts.append(GetTextForMessage(_messages[index]).text);
 			}
 		}
 		return texts.join(u"\n\n"_q);
@@ -510,26 +512,19 @@ private:
 		return bubbleRect.isEmpty() ? QRect() : bubbleRect.marginsRemoved(st::msgPadding);
 	}
 
-	int getTextPositionAtPoint(const QRect &textRect, const QPoint &point, const QString &text) const {
-		if (text.isEmpty()) {
+	int getTextPositionAtPoint(const QRect &textRect, const QPoint &point, const MessageData &message) const {
+		const auto rich = GetTextForMessage(message);
+		if (rich.text.isEmpty()) {
 			return 0;
 		}
-		
-		// Use same bounded width as sizing/drawing so hit-test matches layout
-		Ui::Text::String textString(st::messageTextStyle, text, kDefaultTextOptions, textRect.width());
-		
-		// Use the same approach as Telegram's history view
+		Ui::Text::String textString(st::messageTextStyle, rich, kMarkupTextOptions, textRect.width());
 		Ui::Text::StateRequest request;
 		request.flags = Ui::Text::StateRequest::Flag::LookupSymbol;
-		
 		const auto state = textString.getState(point, textRect.width(), request);
-		
-		// Handle the afterSymbol flag like Telegram does
 		auto symbol = state.symbol;
-		if (state.afterSymbol && symbol < text.length()) {
+		if (state.afterSymbol && symbol < rich.text.length()) {
 			++symbol;
 		}
-		
 		return symbol;
 	}
 
@@ -642,30 +637,24 @@ private:
 		return TextSelection(start, end);
 	}
 
-	// Use Ui::Text::String for sizing so bubble dimensions match actual drawing (fixes emoji/last-line overflow).
-	// Pass availableWidth as minResizeWidth so the string wraps; default kQFixedMax would make layout use unbounded width.
-	static QSize getTextSizeForBubble(const QString &text, int availableWidth) {
-		if (text.isEmpty()) {
+	static QSize getTextSizeForBubble(const MessageData &message, int availableWidth) {
+		const auto rich = GetTextForMessage(message);
+		if (rich.text.isEmpty()) {
 			return QSize(0, 0);
 		}
-		Ui::Text::String textString(st::messageTextStyle, text, kDefaultTextOptions, availableWidth);
+		Ui::Text::String textString(st::messageTextStyle, rich, kMarkupTextOptions, availableWidth);
 		const auto w = textString.countWidth(availableWidth);
 		const auto h = textString.countHeight(availableWidth);
 		return QSize(w, h);
 	}
 
-	void drawTextWithSelection(Painter &p, const QRect &rect, const QString &text, const TextSelection &selection, const Ui::MessageStyle &style) {
-		// Create a Ui::Text::String with rect.width() so layout wraps (same as getTextSizeForBubble).
-		Ui::Text::String textString(st::messageTextStyle, text, kDefaultTextOptions, rect.width());
-		
-		// Set the text color for the painter
+	void drawTextWithSelection(Painter &p, const QRect &rect, const MessageData &message, const TextSelection &selection, const Ui::MessageStyle &style) {
+		const auto rich = GetTextForMessage(message);
+		Ui::Text::String textString(st::messageTextStyle, rich, kMarkupTextOptions, rect.width());
 		p.setPen(style.historyTextFg);
 		p.setFont(st::msgFont);
-		
-		// Clip to text rect so the last line (e.g. with emojis) never overflows the bubble
 		p.save();
 		p.setClipRect(rect);
-		// Draw the text with selection using the same approach as Telegram's history view
 		textString.draw(p, {
 			.position = rect.topLeft(),
 			.availableWidth = rect.width(),
@@ -691,9 +680,10 @@ private:
 			return QString();
 		}
 		const auto &message = _messages[_selectedMessageIndex];
-		const auto from = qBound(0, static_cast<int>(_textSelection.from), static_cast<int>(message.text.length()));
-		const auto to = qBound(0, static_cast<int>(_textSelection.to), static_cast<int>(message.text.length()));
-		return message.text.mid(from, to - from);
+		const auto displayText = GetTextForMessage(message).text;
+		const auto from = qBound(0, static_cast<int>(_textSelection.from), displayText.length());
+		const auto to = qBound(0, static_cast<int>(_textSelection.to), displayText.length());
+		return displayText.mid(from, to - from);
 	}
 
 	void setCursorForTextSelection() {

@@ -210,12 +210,10 @@ void OpenAIClient::handleNetworkError(QNetworkReply::NetworkError error, const Q
 }
 
 QString OpenAIClient::prepareSystemMessage() const {
-	QString systemMessage = "You are Telebrain — the AI Copilot integrated into Telegram Desktop. Be concise, helpful, and context-aware. Use the conversation context when relevant, ask clarifying questions when information is missing, and avoid fabricating Telegram data you cannot access.";
-	
-	// Add current date
+	QString systemMessage = "You are Telebrain — the AI Copilot integrated into Telegram Desktop. Be concise, helpful, and context-aware. Use the conversation context when relevant, ask clarifying questions when information is missing, and avoid fabricating Telegram data you cannot access.\n\nFormatting: use **text** for bold and __text__ for italic. Do not use other markdown; only these two patterns will be rendered.";
 	QString currentDate = QDateTime::currentDateTime().toString("MMMM d, yyyy");
 	systemMessage += QString("\n\nToday's date is: %1").arg(currentDate);
-	
+
 	// Add user information if session controller is available
 	if (_sessionController) {
 		const auto user = _sessionController->session().user();
