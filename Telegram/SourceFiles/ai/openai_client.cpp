@@ -83,7 +83,7 @@ void OpenAIClient::sendChatCompletion(
 	// Get base URL from settings
 	QString baseUrl = Core::App().settings().aiChatBaseUrl();
 	if (baseUrl.isEmpty()) {
-		baseUrl = "https://api.openai.com/v1";
+		baseUrl = "https://openrouter.ai/api/v1";
 	}
 	// Get API key from settings
 	QString openaiApiKey = Core::App().settings().aiChatApiKey();
@@ -271,10 +271,10 @@ QString OpenAIClient::getChatContext() const {
 QJsonObject OpenAIClient::createRequestBody(const QJsonArray &messages) const {
 	QJsonObject requestBody;
 	
-	// Get model from settings, default to gpt-5.2 if not set
+	// Get model from settings, default to stepfun/step-3.5-flash:free if not set
 	QString model = Core::App().settings().aiChatModel();
 	if (model.isEmpty()) {
-		model = "gpt-5.2";
+		model = "stepfun/step-3.5-flash:free";
 	}
 	
 	requestBody["model"] = model;

@@ -821,9 +821,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_ai_api_key" = "API Key";
 "lng_settings_ai_api_key_placeholder" = "Enter your API key";
 "lng_settings_ai_base_url" = "Base URL";
-"lng_settings_ai_base_url_placeholder" = "https://api.openai.com/v1";
+"lng_settings_ai_base_url_placeholder" = "https://openrouter.ai/api/v1";
 "lng_settings_ai_model" = "Model";
-"lng_settings_ai_model_placeholder" = "gpt-5.2";
+"lng_settings_ai_model_placeholder" = "stepfun/step-3.5-flash:free";
 "lng_settings_ai_help" = "Configure your Telebrain settings. You might need a valid API key to use the Telebrain feature.";
 "lng_settings_stickers_emoji" = "Stickers and emoji";
 "lng_settings_messages" = "Messages";

@@ -1,6 +1,6 @@
 # 🧠 Telebrain - Telegram Desktop with AI Copilot
 
-Telebrain is a fork of Telegram Desktop with an integrated AI Copilot that brings powerful AI assistance directly into your Telegram experience. Chat with AI in the context of your conversation to get contextually-aware responses. The Completions API endpoint is fully configurable, allowing you to connect to most cloud LLM providers (OpenAI, Anthropic, DeepSeek) or run against a local model (via LM Studio or similar). This repository contains the complete source code and build instructions, based on the official [Telegram][telegram] messenger desktop client.
+Telebrain is a fork of Telegram Desktop with an integrated AI Copilot that brings powerful AI assistance directly into your Telegram experience. Chat with AI in the context of your conversation to get contextually-aware responses. The Completions API endpoint is fully configurable, allowing you to connect to most cloud LLM providers (OpenRouter, OpenAI, Anthropic, DeepSeek) or run against a local model (via LM Studio or similar). This repository contains the complete source code and build instructions, based on the official [Telegram][telegram] messenger desktop client.
 
 ![aznavour](https://github.com/user-attachments/assets/cd143ba4-9f68-49b4-a5cc-22bc8249a710)
 
@@ -12,8 +12,8 @@ The source code is published under GPLv3 with OpenSSL exception, the license is 
 
 ### Tested endpoints (Base URL) and models
 
-- OpenAI - default: `https://api.openai.com/v1`, models `gpt-5.2` (default), `gpt-4.1`, `gpt-4o` - requires API key
-- OpenRouter: `https://openrouter.ai/api/v1`, model `openrouter/aurora-alpha`, `minimax/minimax-m2.5`, `stepfun/step-3.5-flash:free`, [`openrouter/free`](https://openrouter.ai/openrouter/free) - requires API key
+- OpenRouter - default: `https://openrouter.ai/api/v1`, model `stepfun/step-3.5-flash:free` (default), `openrouter/aurora-alpha`, `minimax/minimax-m2.5`, [`openrouter/free`](https://openrouter.ai/openrouter/free) - requires API key
+- OpenAI: `https://api.openai.com/v1`, models `gpt-5.2`, `gpt-4.1`, `gpt-4o` - requires API key
 - Anthropic: `https://api.anthropic.com/v1`, models `claude-sonnet-4-20250514`, `claude-opus-4-1-20250805` - requires API key
 - DeepSeek: `https://api.deepseek.com`, models `deepseek-chat`, `deepseek-reasoner` - requires API key
 - LM Studio: `http://localhost:1234/v1`, model `google/gemma-3-12b`, `openai/gpt-oss-20b` (prints reasoning tokens without proper formatting) - doesn't require API key
