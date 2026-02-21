@@ -91,6 +91,8 @@ void OpenAIClient::sendChatCompletion(
 	// Prepare the request
 	QNetworkRequest request(QUrl(baseUrl + "/chat/completions"));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+	request.setRawHeader("HTTP-Referer", QByteArray("https://github.com/fedorn/telebrain"));
+	request.setRawHeader("X-Title", QByteArray("Telebrain"));
 	if (!openaiApiKey.isEmpty()) {
 		request.setRawHeader("Authorization", QString("Bearer %1").arg(openaiApiKey).toUtf8());
 	}
