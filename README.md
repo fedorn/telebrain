@@ -14,9 +14,9 @@ The source code is published under GPLv3 with OpenSSL exception, the license is 
 
 - OpenRouter - default: `https://openrouter.ai/api/v1`, models `stepfun/step-3.5-flash:free` (default), `arcee-ai/trinity-large-preview:free`, `openrouter/aurora-alpha`, `minimax/minimax-m2.5`, router `openrouter/free` - requires API key
 - OpenAI: `https://api.openai.com/v1`, models `gpt-5.2`, `gpt-4.1`, `gpt-4o` - requires API key
-- Anthropic: `https://api.anthropic.com/v1`, models `claude-sonnet-4-20250514`, `claude-opus-4-1-20250805` - requires API key
+- Anthropic: `https://api.anthropic.com/v1`, models `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-haiku-4-5` - requires API key
 - DeepSeek: `https://api.deepseek.com`, models `deepseek-chat`, `deepseek-reasoner` - requires API key
-- LM Studio: `http://localhost:1234/v1`, model `google/gemma-3-12b`, `openai/gpt-oss-20b` (prints reasoning tokens without proper formatting) - doesn't require API key
+- LM Studio: `http://localhost:1234/v1`, model `gemma-3-4b`, `google/gemma-3-12b`, `openai/gpt-oss-20b` (prints reasoning tokens without proper formatting) - doesn't require API key
 
 ## Third-party
 
