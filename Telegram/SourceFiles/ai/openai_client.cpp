@@ -261,10 +261,19 @@ QString OpenAIClient::getChatContext() const {
 	for (const auto &item : items) {
 		QString senderName = item->displayFrom()->name();
 		QString timestamp = QDateTime::fromSecsSinceEpoch(item->date()).toString("yyyy-MM-dd HH:mm:ss");
+		auto content = item->originalText().text;
+		if (content.isEmpty()) {
+			content = item->notificationText().text;
+		}
+		if (content.isEmpty()) {
+			content = item->isService()
+				? QString("[service]")
+				: (item->media() ? QString("[media]") : QString("[message]"));
+		}
 		chatContext += QString("[%1] %2: %3\n")
 			.arg(timestamp)
 			.arg(senderName)
-			.arg(item->originalText().text);
+			.arg(content);
 	}
 	chatContext += "\nYou can reference this chat context when responding to the user.";
 	return chatContext;

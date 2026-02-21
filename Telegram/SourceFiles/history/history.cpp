@@ -649,10 +649,6 @@ std::vector<not_null<HistoryItem*>> History::recentMessagesForContext(
 		int maxCount) const {
 	auto out = std::vector<not_null<HistoryItem*>>();
 	for (const auto &message : _items) {
-		if (!message->isRegular() || message->isEmpty()
-			|| message->originalText().text.isEmpty()) {
-			continue;
-		}
 		if (topicRootId && message->topicRootId() != topicRootId) {
 			continue;
 		}
