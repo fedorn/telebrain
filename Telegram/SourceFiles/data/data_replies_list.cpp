@@ -544,7 +544,9 @@ void RepliesList::requestRecentForContext(int count, Fn<void()> done) {
 				MTP_int(0), // min_id
 				MTP_long(0) // hash
 			)).done([=](const MTPmessages_Messages &result) {
-				processMessagesIsEmpty(result);
+				_history->owner().processExistingMessages(
+					_history->peer->asChannel(),
+					result);
 				finish();
 				done();
 			}).fail([=] {

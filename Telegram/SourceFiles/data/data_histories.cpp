@@ -573,29 +573,7 @@ void Histories::requestRecentForContext(
 			MTP_int(0), // min_id
 			MTP_long(0) // hash
 		)).done([=](const MTPmessages_Messages &result) {
-			auto list = QVector<MTPMessage>();
-			result.match([&](const MTPDmessages_messages &d) {
-				_owner->processUsers(d.vusers());
-				_owner->processChats(d.vchats());
-				peer->processTopics(d.vtopics());
-				list = d.vmessages().v;
-			}, [&](const MTPDmessages_messagesSlice &d) {
-				_owner->processUsers(d.vusers());
-				_owner->processChats(d.vchats());
-				peer->processTopics(d.vtopics());
-				list = d.vmessages().v;
-			}, [&](const MTPDmessages_channelMessages &d) {
-				_owner->processUsers(d.vusers());
-				_owner->processChats(d.vchats());
-				if (const auto ch = peer->asChannel()) {
-					ch->ptsReceived(d.vpts().v);
-				}
-				peer->processTopics(d.vtopics());
-				list = d.vmessages().v;
-			}, [](const MTPDmessages_messagesNotModified &) {});
-			if (!list.isEmpty()) {
-				history->addNewerSlice(list);
-			}
+			_owner->processExistingMessages(peer->asChannel(), result);
 			finish();
 			done();
 		}).fail([=] {
