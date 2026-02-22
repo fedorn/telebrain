@@ -439,7 +439,7 @@ void BuildSectionButtons(SectionBuilder &builder) {
 	builder.addSectionButton({
 		.title = tr::lng_settings_ai(),
 		.targetSection = AI::Id(),
-		.icon = { &st::menuIconManage },
+		.icon = { &st::menuIconTelebrain },
 		.keywords = { u"ai"_q, u"assistant"_q },
 	});
 }
