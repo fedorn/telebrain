@@ -933,25 +933,20 @@ void AIChatWidget::updateControlsGeometry() {
 
 void AIChatWidget::sendToOpenAI() {
 	if (_openaiClient->isWaitingForResponse()) {
-		return; // Don't send multiple requests simultaneously
+		return;
 	}
 
-	// Load last 30 messages for context (main chat or topic), then send.
-	_openaiClient->ensureContextLoaded([this] {
-		// Add a "thinking" message to show the user that the AI is processing
-		addAIMessage(kThinkingMessage);
+	addAIMessage(kThinkingMessage);
 
-		// Send the request using the OpenAI client
-		_openaiClient->sendChatCompletion(
-			_messages,
-			[this](const QString &response) {
-				replaceLastAIMessageOrAdd(response);
-			},
-			[this](const QString &error) {
-				replaceLastAIMessageOrAdd(QString("❌ Error: %1").arg(error));
-			}
-		);
-	});
+	_openaiClient->sendChatCompletion(
+		_messages,
+		[this](const QString &response) {
+			replaceLastAIMessageOrAdd(response);
+		},
+		[this](const QString &error) {
+			replaceLastAIMessageOrAdd(QString("❌ Error: %1").arg(error));
+		}
+	);
 }
 
 void AIChatWidget::clearChat() {

@@ -44,28 +44,6 @@ void OpenAIClient::setSessionController(not_null<Window::SessionController*> con
 	_sessionController = controller.get();
 }
 
-void OpenAIClient::ensureContextLoaded(std::function<void()> done) {
-	if (!_sessionController) {
-		done();
-		return;
-	}
-	const auto activeChat = _sessionController->activeChatCurrent();
-	const auto history = activeChat.owningHistory();
-	if (!history) {
-		done();
-		return;
-	}
-	const auto topic = activeChat.topic();
-	if (topic) {
-		topic->replies()->requestRecentForContext(kContextMessageCount, std::move(done));
-	} else {
-		history->owner().histories().requestRecentForContext(
-			history,
-			kContextMessageCount,
-			std::move(done));
-	}
-}
-
 void OpenAIClient::sendChatCompletion(
 		const std::vector<MessageData> &messages,
 		std::function<void(const QString &)> onSuccess,
@@ -75,72 +53,63 @@ void OpenAIClient::sendChatCompletion(
 		onError("Already waiting for a response. Please wait for the current request to complete.");
 		return;
 	}
-	// Store callbacks
 	_onSuccess = std::move(onSuccess);
 	_onError = std::move(onError);
 	_isWaitingForResponse = true;
 
-	// Get base URL from settings
-	QString baseUrl = Core::App().settings().aiChatBaseUrl();
-	if (baseUrl.isEmpty()) {
-		baseUrl = "https://openrouter.ai/api/v1";
-	}
-	// Get API key from settings
-	QString openaiApiKey = Core::App().settings().aiChatApiKey();
-	
-	// Prepare the request
-	QNetworkRequest request(QUrl(baseUrl + "/chat/completions"));
-	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-	request.setRawHeader("HTTP-Referer", QByteArray("https://github.com/fedorn/telebrain"));
-	request.setRawHeader("X-Title", QByteArray("Telebrain"));
-	if (!openaiApiKey.isEmpty()) {
-		request.setRawHeader("Authorization", QString("Bearer %1").arg(openaiApiKey).toUtf8());
-	}
-	request.setTransferTimeout(60000); // 60 second timeout
-
-	// Prepare messages with system message and conversation
-	QJsonArray messagesArray;
-	
-	// Add system message for context
-	messagesArray.append(QJsonObject{
-		{"role", "system"},
-		{"content", prepareSystemMessage()}
-	});
-
-	// Add conversation messages (last 100 to avoid token limits)
-	const int maxHistory = 100;
-	const int startIndex = std::max(0, static_cast<int>(messages.size()) - maxHistory);
-	for (int i = startIndex; i < static_cast<int>(messages.size()); ++i) {
-		const auto &msg = messages[i];
-		// Skip the "thinking" message and the initial assistant greeting
-		if (msg.text == kThinkingMessage || msg.text == kWelcomeMessage) {
-			continue;
+	auto messagesCopy = messages;
+	getChatContext([this, messagesCopy = std::move(messagesCopy)](QString chatContext) {
+		QString baseUrl = Core::App().settings().aiChatBaseUrl();
+		if (baseUrl.isEmpty()) {
+			baseUrl = "https://openrouter.ai/api/v1";
 		}
+		QString openaiApiKey = Core::App().settings().aiChatApiKey();
+
+		QNetworkRequest request(QUrl(baseUrl + "/chat/completions"));
+		request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+		request.setRawHeader("HTTP-Referer", QByteArray("https://github.com/fedorn/telebrain"));
+		request.setRawHeader("X-Title", QByteArray("Telebrain"));
+		if (!openaiApiKey.isEmpty()) {
+			request.setRawHeader("Authorization", QString("Bearer %1").arg(openaiApiKey).toUtf8());
+		}
+		request.setTransferTimeout(60000);
+
+		QJsonArray messagesArray;
 		messagesArray.append(QJsonObject{
-			{"role", msg.isFromUser ? "user" : "assistant"},
-			{"content", msg.text}
+			{"role", "system"},
+			{"content", prepareSystemMessage(chatContext)}
 		});
-	}
 
-	// Create request body
-	QJsonObject requestBody = createRequestBody(messagesArray);
-	QJsonDocument doc(requestBody);
-	QByteArray data = doc.toJson();
+		const int maxHistory = 100;
+		const int startIndex = std::max(0, static_cast<int>(messagesCopy.size()) - maxHistory);
+		for (int i = startIndex; i < static_cast<int>(messagesCopy.size()); ++i) {
+			const auto &msg = messagesCopy[i];
+			if (msg.text == kThinkingMessage || msg.text == kWelcomeMessage) {
+				continue;
+			}
+			messagesArray.append(QJsonObject{
+				{"role", msg.isFromUser ? "user" : "assistant"},
+				{"content", msg.text}
+			});
+		}
 
-	// Send the request
-	QNetworkReply *reply = _networkManager->post(request, data);
-	
-	// Connect signals
-	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-		handleResponse(reply);
-		reply->deleteLater();
-	});
+		QJsonObject requestBody = createRequestBody(messagesArray);
+		QJsonDocument doc(requestBody);
+		QByteArray data = doc.toJson();
 
-	connect(reply, &QNetworkReply::errorOccurred,
-		this, [this, reply](QNetworkReply::NetworkError error) {
-			handleNetworkError(error, reply->errorString());
+		QNetworkReply *reply = _networkManager->post(request, data);
+
+		connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+			handleResponse(reply);
 			reply->deleteLater();
 		});
+
+		connect(reply, &QNetworkReply::errorOccurred,
+			this, [this, reply](QNetworkReply::NetworkError error) {
+				handleNetworkError(error, reply->errorString());
+				reply->deleteLater();
+			});
+	});
 }
 
 bool OpenAIClient::isWaitingForResponse() const {
@@ -211,17 +180,16 @@ void OpenAIClient::handleNetworkError(QNetworkReply::NetworkError error, const Q
 	}
 }
 
-QString OpenAIClient::prepareSystemMessage() const {
+QString OpenAIClient::prepareSystemMessage(const QString &chatContext) const {
 	QString systemMessage = "You are Telebrain — the AI Copilot integrated into Telegram Desktop. Be concise, helpful, and context-aware. Use the conversation context when relevant, ask clarifying questions when information is missing, and avoid fabricating Telegram data you cannot access.\n\nFormatting: use **text** for bold and __text__ for italic. Do not use other markdown; only these two patterns will be rendered.";
 	QString currentDate = QDateTime::currentDateTime().toString("MMMM d, yyyy");
 	systemMessage += QString("\n\nToday's date is: %1").arg(currentDate);
 
-	// Add user information if session controller is available
 	if (_sessionController) {
 		const auto user = _sessionController->session().user();
 		const auto userName = user->name();
 		const auto userUsername = user->username();
-		
+
 		QString userInfo = "\n\nUser Information:\n";
 		userInfo += QString("- Name: %1\n").arg(userName);
 		if (!userUsername.isEmpty()) {
@@ -229,54 +197,66 @@ QString OpenAIClient::prepareSystemMessage() const {
 		}
 		userInfo += "- You are chatting in Telebrain (AI Copilot for Telegram Desktop).\n";
 		userInfo += "- The user is asking you questions and seeking assistance.\n";
-		
+
 		systemMessage += userInfo;
-		
-		// Add chat context
-		QString chatContext = getChatContext();
+
 		if (!chatContext.isEmpty()) {
 			systemMessage += chatContext;
 		}
 	}
-	
+
 	return systemMessage;
 }
 
-QString OpenAIClient::getChatContext() const {
+void OpenAIClient::getChatContext(std::function<void(QString)> done) {
 	if (!_sessionController) {
-		return QString();
+		done(QString());
+		return;
 	}
 	const auto activeChat = _sessionController->activeChatCurrent();
 	const auto history = activeChat.owningHistory();
 	if (!history) {
-		return QString();
+		done(QString());
+		return;
 	}
-	const auto thread = activeChat.thread();
-	const auto topicRootId = thread ? thread->topicRootId() : MsgId(0);
-	const auto items = history->recentMessagesForContext(topicRootId, kContextMessageCount);
-	if (items.empty()) {
-		return QString();
-	}
-	QString chatContext = QString("\n\nCurrent chat context (last %1 messages):\n").arg(items.size());
-	for (const auto &item : items) {
-		QString senderName = item->displayFrom()->name();
-		QString timestamp = QDateTime::fromSecsSinceEpoch(item->date()).toString("yyyy-MM-dd HH:mm:ss");
-		auto content = item->originalText().text;
-		if (content.isEmpty()) {
-			content = item->notificationText().text;
+	const auto topic = activeChat.topic();
+	auto afterLoad = [this, activeChat, history, done = std::move(done)]() {
+		const auto thread = activeChat.thread();
+		const auto topicRootId = thread ? thread->topicRootId() : MsgId(0);
+		const auto items = history->recentMessagesForContext(topicRootId, kContextMessageCount);
+		if (items.empty()) {
+			done(QString());
+			return;
 		}
-		if (content.isEmpty()) {
-			content = item->isService()
-				? QString("[service]")
-				: (item->media() ? QString("[media]") : QString("[message]"));
+		QString chatContext = QString("\n\nCurrent chat context (last %1 messages):\n").arg(items.size());
+		for (const auto &item : items) {
+			QString senderName = item->displayFrom()->name();
+			QString timestamp = QDateTime::fromSecsSinceEpoch(item->date()).toString("yyyy-MM-dd HH:mm:ss");
+			auto content = item->originalText().text;
+			if (content.isEmpty()) {
+				content = item->notificationText().text;
+			}
+			if (content.isEmpty()) {
+				content = item->isService()
+					? QString("[service]")
+					: (item->media() ? QString("[media]") : QString("[message]"));
+			}
+			chatContext += QString("[%1] %2: %3\n")
+				.arg(timestamp)
+				.arg(senderName)
+				.arg(content);
 		}
-		chatContext += QString("[%1] %2: %3\n")
-			.arg(timestamp)
-			.arg(senderName)
-			.arg(content);
+		chatContext += "\nYou can reference this chat context when responding to the user.";
+		done(chatContext);
+	};
+	if (topic) {
+		topic->replies()->requestRecentForContext(kContextMessageCount, std::move(afterLoad));
+	} else {
+		history->owner().histories().requestRecentForContext(
+			history,
+			kContextMessageCount,
+			std::move(afterLoad));
 	}
-	chatContext += "\nYou can reference this chat context when responding to the user.";
-	return chatContext;
 }
 
 QJsonObject OpenAIClient::createRequestBody(const QJsonArray &messages) const {

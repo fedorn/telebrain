@@ -45,9 +45,6 @@ public:
 		std::function<void(const QString &)> onSuccess,
 		std::function<void(const QString &)> onError);
 
-	// Request last 30 messages for current chat/topic then call done (for full context).
-	void ensureContextLoaded(std::function<void()> done);
-
 	// Check if currently waiting for a response
 	bool isWaitingForResponse() const;
 
@@ -56,11 +53,8 @@ private Q_SLOTS:
 	void handleNetworkError(QNetworkReply::NetworkError error, const QString &errorString);
 
 private:
-	// Prepare the system message with user and chat context
-	QString prepareSystemMessage() const;
-	
-	// Get chat context from the current active chat
-	QString getChatContext() const;
+	QString prepareSystemMessage(const QString &chatContext) const;
+	void getChatContext(std::function<void(QString)> done);
 		
 	// Create the request body
 	QJsonObject createRequestBody(const QJsonArray &messages) const;
