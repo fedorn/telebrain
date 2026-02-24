@@ -249,7 +249,8 @@ QByteArray Settings::serialize() const {
 
 	size += Serialize::stringSize(_aiChatBaseUrl.current())
 		+ Serialize::stringSize(_aiChatApiKey.current())
-		+ Serialize::stringSize(_aiChatModel.current());
+		+ Serialize::stringSize(_aiChatModel.current())
+		+ sizeof(qint32);
 
 	auto result = QByteArray();
 	result.reserve(size);
@@ -417,7 +418,8 @@ QByteArray Settings::serialize() const {
 			<< callPanelPosition
 			<< _aiChatBaseUrl.current()
 			<< _aiChatApiKey.current()
-			<< _aiChatModel.current();
+			<< _aiChatModel.current()
+			<< qint32(_useLocalAiBackend.current() ? 1 : 0);
 	}
 
 	Ensures(result.size() == size);
@@ -904,6 +906,11 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 		QString aiChatModel;
 		stream >> aiChatModel;
 		_aiChatModel = aiChatModel;
+	}
+	if (!stream.atEnd()) {
+		qint32 useLocalAiBackend = 0;
+		stream >> useLocalAiBackend;
+		_useLocalAiBackend = (useLocalAiBackend == 1);
 	}
 	if (stream.status() != QDataStream::Ok) {
 		LOG(("App Error: "
@@ -1783,6 +1790,18 @@ void Settings::setAiChatModel(const QString &model) {
 
 rpl::producer<QString> Settings::aiChatModelValue() const {
 	return _aiChatModel.value();
+}
+
+bool Settings::useLocalAiBackend() const {
+	return _useLocalAiBackend.current();
+}
+
+void Settings::setUseLocalAiBackend(bool value) {
+	_useLocalAiBackend = value;
+}
+
+rpl::producer<bool> Settings::useLocalAiBackendValue() const {
+	return _useLocalAiBackend.value();
 }
 
 } // namespace Core

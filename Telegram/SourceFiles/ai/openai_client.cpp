@@ -58,44 +58,79 @@ void OpenAIClient::sendChatCompletion(
 	_isWaitingForResponse = true;
 
 	auto messagesCopy = messages;
-	getChatContext([this, messagesCopy = std::move(messagesCopy)](QString chatContext) {
+	const auto useLocal = Core::App().settings().useLocalAiBackend();
+	getChatContext([this, messagesCopy = std::move(messagesCopy), useLocal](QString chatContext) {
 		QString baseUrl = Core::App().settings().aiChatBaseUrl();
 		if (baseUrl.isEmpty()) {
-			baseUrl = "https://openrouter.ai/api/v1";
+			baseUrl = useLocal ? "http://127.0.0.1:8000" : "https://openrouter.ai/api/v1";
 		}
-		QString openaiApiKey = Core::App().settings().aiChatApiKey();
+		QString path = useLocal ? "/v1/chat" : "/chat/completions";
+		QString urlStr = baseUrl.endsWith('/') ? baseUrl.left(baseUrl.size() - 1) + path : baseUrl + path;
 
-		QNetworkRequest request(QUrl(baseUrl + "/chat/completions"));
+		QNetworkRequest request{QUrl(urlStr)};
 		request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-		request.setRawHeader("HTTP-Referer", QByteArray("https://github.com/fedorn/telebrain"));
-		request.setRawHeader("X-Title", QByteArray("Telebrain"));
-		if (!openaiApiKey.isEmpty()) {
-			request.setRawHeader("Authorization", QString("Bearer %1").arg(openaiApiKey).toUtf8());
-		}
 		request.setTransferTimeout(60000);
 
-		QJsonArray messagesArray;
-		messagesArray.append(QJsonObject{
-			{"role", "system"},
-			{"content", prepareSystemMessage(chatContext)}
-		});
-
-		const int maxHistory = 100;
-		const int startIndex = std::max(0, static_cast<int>(messagesCopy.size()) - maxHistory);
-		for (int i = startIndex; i < static_cast<int>(messagesCopy.size()); ++i) {
-			const auto &msg = messagesCopy[i];
-			if (msg.text == kThinkingMessage || msg.text == kWelcomeMessage) {
-				continue;
+		QJsonObject requestBody;
+		QByteArray data;
+		if (useLocal) {
+			_isLocalBackendRequest = true;
+			request.setRawHeader("HTTP-Referer", QByteArray("https://github.com/fedorn/telebrain"));
+			request.setRawHeader("X-Title", QByteArray("Telebrain"));
+			QJsonArray messagesArray;
+			const int maxHistory = 100;
+			const int startIndex = std::max(0, static_cast<int>(messagesCopy.size()) - maxHistory);
+			for (int i = startIndex; i < static_cast<int>(messagesCopy.size()); ++i) {
+				const auto &msg = messagesCopy[i];
+				if (msg.text == kThinkingMessage || msg.text == kWelcomeMessage) {
+					continue;
+				}
+				messagesArray.append(QJsonObject{
+					{"role", msg.isFromUser ? "user" : "assistant"},
+					{"content", msg.text}
+				});
 			}
+			requestBody["messages"] = messagesArray;
+			requestBody["chat_context"] = chatContext;
+			QString userName;
+			QString userUsername;
+			if (_sessionController) {
+				const auto user = _sessionController->session().user();
+				userName = user->name();
+				userUsername = user->username();
+			}
+			requestBody["user_name"] = userName;
+			requestBody["user_username"] = userUsername;
+			QJsonDocument doc(requestBody);
+			data = doc.toJson();
+		} else {
+			request.setRawHeader("HTTP-Referer", QByteArray("https://github.com/fedorn/telebrain"));
+			request.setRawHeader("X-Title", QByteArray("Telebrain"));
+			QString openaiApiKey = Core::App().settings().aiChatApiKey();
+			if (!openaiApiKey.isEmpty()) {
+				request.setRawHeader("Authorization", QString("Bearer %1").arg(openaiApiKey).toUtf8());
+			}
+			QJsonArray messagesArray;
 			messagesArray.append(QJsonObject{
-				{"role", msg.isFromUser ? "user" : "assistant"},
-				{"content", msg.text}
+				{"role", "system"},
+				{"content", prepareSystemMessage(chatContext)}
 			});
+			const int maxHistory = 100;
+			const int startIndex = std::max(0, static_cast<int>(messagesCopy.size()) - maxHistory);
+			for (int i = startIndex; i < static_cast<int>(messagesCopy.size()); ++i) {
+				const auto &msg = messagesCopy[i];
+				if (msg.text == kThinkingMessage || msg.text == kWelcomeMessage) {
+					continue;
+				}
+				messagesArray.append(QJsonObject{
+					{"role", msg.isFromUser ? "user" : "assistant"},
+					{"content", msg.text}
+				});
+			}
+			requestBody = createRequestBody(messagesArray);
+			QJsonDocument doc(requestBody);
+			data = doc.toJson();
 		}
-
-		QJsonObject requestBody = createRequestBody(messagesArray);
-		QJsonDocument doc(requestBody);
-		QByteArray data = doc.toJson();
 
 		QNetworkReply *reply = _networkManager->post(request, data);
 
@@ -118,12 +153,65 @@ bool OpenAIClient::isWaitingForResponse() const {
 
 void OpenAIClient::handleResponse(QNetworkReply *reply) {
 	_isWaitingForResponse = false;
+	const bool localBackend = _isLocalBackendRequest;
+	if (localBackend) {
+		_isLocalBackendRequest = false;
+	}
+
+	QByteArray responseData = reply->readAll();
+
+	if (localBackend) {
+		const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		if (status != 200) {
+			QString errMsg;
+			QJsonParseError parseError;
+			QJsonDocument doc = QJsonDocument::fromJson(responseData, &parseError);
+			if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
+				QString detail = doc.object()["detail"].toString();
+				if (!detail.isEmpty()) {
+					errMsg = detail;
+				}
+			}
+			if (errMsg.isEmpty()) {
+				errMsg = QString("Local AI backend error (HTTP %1)").arg(status);
+			}
+			if (_onError) {
+				_onError(errMsg);
+			}
+			return;
+		}
+		QJsonParseError parseError;
+		QJsonDocument jsonResponse = QJsonDocument::fromJson(responseData, &parseError);
+		if (parseError.error != QJsonParseError::NoError) {
+			if (_onError) {
+				_onError(QString("JSON parse error: %1").arg(parseError.errorString()));
+			}
+			return;
+		}
+		QJsonObject responseObj = jsonResponse.object();
+		if (responseObj.contains("error")) {
+			if (_onError) {
+				_onError(responseObj["error"].toString());
+			}
+			return;
+		}
+		QString content = responseObj["content"].toString();
+		if (content.isEmpty()) {
+			if (_onError) {
+				_onError("Empty response from local AI backend");
+			}
+			return;
+		}
+		if (_onSuccess) {
+			_onSuccess(content);
+		}
+		return;
+	}
 
 	if (reply->error() != QNetworkReply::NoError) {
 		return;
 	}
 
-	QByteArray responseData = reply->readAll();
 	QJsonParseError parseError;
 	QJsonDocument jsonResponse = QJsonDocument::fromJson(responseData, &parseError);
 
@@ -135,8 +223,7 @@ void OpenAIClient::handleResponse(QNetworkReply *reply) {
 	}
 
 	QJsonObject responseObj = jsonResponse.object();
-	
-	// Check for API errors
+
 	if (responseObj.contains("error")) {
 		QJsonObject errorObj = responseObj["error"].toObject();
 		QString errorMessage = errorObj["message"].toString();
@@ -146,7 +233,6 @@ void OpenAIClient::handleResponse(QNetworkReply *reply) {
 		return;
 	}
 
-	// Extract the response text
 	QJsonArray choices = responseObj["choices"].toArray();
 	if (choices.isEmpty()) {
 		if (_onError) {
@@ -166,7 +252,6 @@ void OpenAIClient::handleResponse(QNetworkReply *reply) {
 		return;
 	}
 
-	// Call success callback
 	if (_onSuccess) {
 		_onSuccess(aiResponse);
 	}
@@ -174,14 +259,15 @@ void OpenAIClient::handleResponse(QNetworkReply *reply) {
 
 void OpenAIClient::handleNetworkError(QNetworkReply::NetworkError error, const QString &errorString) {
 	_isWaitingForResponse = false;
-	
+	_isLocalBackendRequest = false;
+
 	if (_onError) {
 		_onError(QString("Network error: %1").arg(errorString));
 	}
 }
 
 QString OpenAIClient::prepareSystemMessage(const QString &chatContext) const {
-	QString systemMessage = "You are Telebrain — the AI Copilot integrated into Telegram Desktop. Be concise, helpful, and context-aware. Use the conversation context when relevant, ask clarifying questions when information is missing, and avoid fabricating Telegram data you cannot access.\n\nFormatting: use **text** for bold and __text__ for italic. Do not use other markdown; only these two patterns will be rendered.";
+	QString systemMessage = "You are Telebrain — the AI Copilot integrated into Telegram Desktop. Be concise, helpful, and context-aware. Use the conversation context when relevant, ask clarifying questions when information is missing, and avoid fabricating Telegram data you cannot access.\n\nFormatting: use **text** for bold and __text__ for italic. Use only one style per span (no bold+italic on the same text). No other markdown.";
 	QString currentDate = QDateTime::currentDateTime().toString("MMMM d, yyyy");
 	systemMessage += QString("\n\nToday's date is: %1").arg(currentDate);
 
@@ -220,7 +306,7 @@ void OpenAIClient::getChatContext(std::function<void(QString)> done) {
 		return;
 	}
 	const auto topic = activeChat.topic();
-	auto afterLoad = [this, activeChat, history, done = std::move(done)]() {
+	auto afterLoad = [activeChat, history, done = std::move(done)]() {
 		const auto thread = activeChat.thread();
 		const auto topicRootId = thread ? thread->topicRootId() : MsgId(0);
 		const auto items = history->recentMessagesForContext(topicRootId, kContextMessageCount);

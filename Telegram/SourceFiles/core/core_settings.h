@@ -991,6 +991,10 @@ public:
 	void setAiChatModel(const QString &model);
 	[[nodiscard]] rpl::producer<QString> aiChatModelValue() const;
 
+	[[nodiscard]] bool useLocalAiBackend() const;
+	void setUseLocalAiBackend(bool value);
+	[[nodiscard]] rpl::producer<bool> useLocalAiBackendValue() const;
+
 private:
 	void resolveRecentEmoji() const;
 
@@ -1078,6 +1082,7 @@ private:
 	rpl::variable<QString> _aiChatBaseUrl;
 	rpl::variable<QString> _aiChatApiKey;
 	rpl::variable<QString> _aiChatModel;
+	rpl::variable<bool> _useLocalAiBackend = false;
 	int _thirdSectionExtendedBy = -1; // per-window
 	rpl::variable<float64> _dialogsWithChatWidthRatio; // per-window
 	rpl::variable<float64> _dialogsNoChatWidthRatio; // per-window

@@ -61,12 +61,11 @@ private:
 
 	std::unique_ptr<QNetworkAccessManager> _networkManager;
 	bool _isWaitingForResponse = false;
-	
-	// Callbacks for the current request
+	bool _isLocalBackendRequest = false;
+
 	std::function<void(const QString &)> _onSuccess;
 	std::function<void(const QString &)> _onError;
-	
-	// Session controller for getting user and chat context
+
 	Window::SessionController* _sessionController = nullptr;
 };
 

@@ -8,6 +8,7 @@ https://github.com/fedorn/telebrain/blob/dev/LEGAL
 
 #include "settings/settings_common.h"
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/checkbox.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/labels.h"
 #include "ui/wrap/vertical_layout.h"
@@ -41,7 +42,19 @@ void AI::setupContent(not_null<Window::SessionController*> controller) {
 	Ui::AddSkip(content);
 	Ui::AddSubsectionTitle(content, tr::lng_settings_ai_configuration());
 
-	// Base URL setting
+	const auto useLocalBackend = content->add(
+		object_ptr<Ui::Checkbox>(
+			content,
+			tr::lng_settings_ai_use_local_backend(tr::now),
+			Core::App().settings().useLocalAiBackend(),
+			st::settingsCheckbox),
+		st::settingsCheckboxPadding);
+	useLocalBackend->checkedChanges(
+	) | rpl::on_next([=](bool checked) {
+		Core::App().settings().setUseLocalAiBackend(checked);
+		Core::App().saveSettingsDelayed();
+	}, useLocalBackend->lifetime());
+
 	Ui::AddSkip(content);
 	Ui::AddSubsectionTitle(content, tr::lng_settings_ai_base_url());
 
