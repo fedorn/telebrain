@@ -1784,8 +1784,8 @@ PRIVATE
     window/window_session_controller.cpp
     window/window_session_controller.h
     window/window_session_controller_link_info.h
-    window/window_telebrain_onboarding.cpp
-    window/window_telebrain_onboarding.h
+    window/window_telebrain_intro.cpp
+    window/window_telebrain_intro.h
     window/window_setup_email.cpp
     window/window_setup_email.h
     window/window_top_bar_wrap.h

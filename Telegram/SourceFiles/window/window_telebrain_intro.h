@@ -13,7 +13,7 @@ namespace Window {
 
 class Controller;
 
-void ShowTelebrainOnboardingAfterTelegramOnboarding(
+void ShowTelebrainIntroAfterTelegramIntro(
 	not_null<Controller*> controller);
 
 } // namespace Window

@@ -251,7 +251,7 @@ QByteArray Settings::serialize() const {
 		+ Serialize::stringSize(_aiChatApiKey.current())
 		+ Serialize::stringSize(_aiChatModel.current());
 
-	size += sizeof(qint32); // _telebrainOnboardingShown
+	size += sizeof(qint32); // _telebrainIntroShown
 
 	auto result = QByteArray();
 	result.reserve(size);
@@ -420,7 +420,7 @@ QByteArray Settings::serialize() const {
 			<< _aiChatBaseUrl.current()
 			<< _aiChatApiKey.current()
 			<< _aiChatModel.current()
-			<< qint32(_telebrainOnboardingShown ? 1 : 0);
+			<< qint32(_telebrainIntroShown ? 1 : 0);
 	}
 
 	Ensures(result.size() == size);
@@ -553,7 +553,7 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	quint32 chatFiltersHorizontal = _chatFiltersHorizontal.current() ? 1 : 0;
 	quint32 quickDialogAction = quint32(_quickDialogAction);
 	ushort notificationsVolume = _notificationsVolume;
-	qint32 telebrainOnboardingShown = _telebrainOnboardingShown ? 1 : 0;
+	qint32 telebrainIntroShown = _telebrainIntroShown ? 1 : 0;
 
 	stream >> themesAccentColors;
 	if (!stream.atEnd()) {
@@ -910,7 +910,7 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 		_aiChatModel = aiChatModel;
 	}
 	if (!stream.atEnd()) {
-		stream >> telebrainOnboardingShown;
+		stream >> telebrainIntroShown;
 	}
 	if (stream.status() != QDataStream::Ok) {
 		LOG(("App Error: "
@@ -1139,7 +1139,7 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	_chatFiltersHorizontal = (chatFiltersHorizontal == 1);
 	_quickDialogAction = Dialogs::Ui::QuickDialogAction(quickDialogAction);
 	_notificationsVolume = notificationsVolume;
-	_telebrainOnboardingShown = (telebrainOnboardingShown == 1);
+	_telebrainIntroShown = (telebrainIntroShown == 1);
 }
 
 QString Settings::getSoundPath(const QString &key) const {

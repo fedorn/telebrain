@@ -31,7 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/promo_suggestions.h"
 #include "data/data_thread.h"
 #include "settings/settings_common.h"
-#include "window/window_telebrain_onboarding.h"
+#include "window/window_telebrain_intro.h"
 #include "apiwrap.h" // ApiWrap::acceptTerms.
 #include "styles/style_layers.h"
 
@@ -190,7 +190,7 @@ void Controller::showAccount(
 			setupMain(singlePeerShowAtMsgId, std::move(oldContentCache));
 			if (_telebrainIntroWasShown) {
 				_telebrainIntroWasShown = false;
-				ShowTelebrainOnboardingAfterTelegramOnboarding(this);
+				ShowTelebrainIntroAfterTelegramIntro(this);
 			}
 
 			session->updates().isIdleValue(

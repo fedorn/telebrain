@@ -5,7 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
-#include "window/window_telebrain_onboarding.h"
+#include "window/window_telebrain_intro.h"
 
 #include "window/window_controller.h"
 #include "core/application.h"
@@ -19,15 +19,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Window {
 namespace {
 
-void SetTelebrainOnboardingShown() {
+void SetTelebrainIntroShown() {
 	auto &settings = Core::App().settings();
-	if (!settings.telebrainOnboardingShown()) {
-		settings.setTelebrainOnboardingShown(true);
+	if (!settings.telebrainIntroShown()) {
+		settings.setTelebrainIntroShown(true);
 		Core::App().saveSettingsDelayed();
 	}
 }
 
-void TelebrainOnboardingBox(
+void TelebrainIntroBox(
 		not_null<Ui::GenericBox*> box,
 		not_null<Controller*> controller) {
 	box->setTitle(rpl::single(u"Welcome to Telebrain"_q));
@@ -60,21 +60,20 @@ void TelebrainOnboardingBox(
 
 	box->boxClosing(
 	) | rpl::take(1) | rpl::on_next([=] {
-		SetTelebrainOnboardingShown();
+		SetTelebrainIntroShown();
 	}, box->lifetime());
 
-	// Avoid unused warnings in some configs.
 	(void)controller;
 }
 
 } // namespace
 
-void ShowTelebrainOnboardingAfterTelegramOnboarding(
+void ShowTelebrainIntroAfterTelegramIntro(
 		not_null<Controller*> controller) {
-	if (Core::App().settings().telebrainOnboardingShown()) {
+	if (Core::App().settings().telebrainIntroShown()) {
 		return;
 	}
-	controller->show(Box<Ui::GenericBox>(TelebrainOnboardingBox, controller));
+	controller->show(Box<Ui::GenericBox>(TelebrainIntroBox, controller));
 }
 
 } // namespace Window
