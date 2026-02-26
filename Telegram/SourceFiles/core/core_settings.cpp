@@ -251,6 +251,8 @@ QByteArray Settings::serialize() const {
 		+ Serialize::stringSize(_aiChatApiKey.current())
 		+ Serialize::stringSize(_aiChatModel.current());
 
+	size += sizeof(qint32); // _telebrainOnboardingShown
+
 	auto result = QByteArray();
 	result.reserve(size);
 	{
@@ -417,7 +419,8 @@ QByteArray Settings::serialize() const {
 			<< callPanelPosition
 			<< _aiChatBaseUrl.current()
 			<< _aiChatApiKey.current()
-			<< _aiChatModel.current();
+			<< _aiChatModel.current()
+			<< qint32(_telebrainOnboardingShown ? 1 : 0);
 	}
 
 	Ensures(result.size() == size);
@@ -550,6 +553,7 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	quint32 chatFiltersHorizontal = _chatFiltersHorizontal.current() ? 1 : 0;
 	quint32 quickDialogAction = quint32(_quickDialogAction);
 	ushort notificationsVolume = _notificationsVolume;
+	qint32 telebrainOnboardingShown = _telebrainOnboardingShown ? 1 : 0;
 
 	stream >> themesAccentColors;
 	if (!stream.atEnd()) {
@@ -905,6 +909,9 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 		stream >> aiChatModel;
 		_aiChatModel = aiChatModel;
 	}
+	if (!stream.atEnd()) {
+		stream >> telebrainOnboardingShown;
+	}
 	if (stream.status() != QDataStream::Ok) {
 		LOG(("App Error: "
 			"Bad data for Core::Settings::constructFromSerialized()"));
@@ -1132,6 +1139,7 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	_chatFiltersHorizontal = (chatFiltersHorizontal == 1);
 	_quickDialogAction = Dialogs::Ui::QuickDialogAction(quickDialogAction);
 	_notificationsVolume = notificationsVolume;
+	_telebrainOnboardingShown = (telebrainOnboardingShown == 1);
 }
 
 QString Settings::getSoundPath(const QString &key) const {

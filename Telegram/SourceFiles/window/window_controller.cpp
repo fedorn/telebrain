@@ -31,6 +31,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/promo_suggestions.h"
 #include "data/data_thread.h"
 #include "settings/settings_common.h"
+#include "window/window_telebrain_onboarding.h"
 #include "apiwrap.h" // ApiWrap::acceptTerms.
 #include "styles/style_layers.h"
 
@@ -187,6 +188,10 @@ void Controller::showAccount(
 		if (session) {
 			setupSideBar();
 			setupMain(singlePeerShowAtMsgId, std::move(oldContentCache));
+			if (_telebrainIntroWasShown) {
+				_telebrainIntroWasShown = false;
+				ShowTelebrainOnboardingAfterTelegramOnboarding(this);
+			}
 
 			session->updates().isIdleValue(
 			) | rpl::filter([=](bool idle) {
@@ -216,6 +221,7 @@ void Controller::showAccount(
 
 			session->updates().updateOnline(crl::now());
 		} else {
+			_telebrainIntroWasShown = true;
 			sideBarChanged();
 			setupIntro(std::move(oldContentCache));
 			_widget.updateGlobalMenu();

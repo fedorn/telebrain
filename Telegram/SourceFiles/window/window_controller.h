@@ -193,6 +193,8 @@ private:
 
 	QString _highlightControlId;
 
+	bool _telebrainIntroWasShown = false;
+
 	rpl::lifetime _accountLifetime;
 	rpl::lifetime _lifetime;
 

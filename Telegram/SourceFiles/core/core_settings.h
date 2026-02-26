@@ -991,6 +991,16 @@ public:
 	void setAiChatModel(const QString &model);
 	[[nodiscard]] rpl::producer<QString> aiChatModelValue() const;
 
+	[[nodiscard]] bool telebrainOnboardingShown() const {
+		return _telebrainOnboardingShown;
+	}
+	void setTelebrainOnboardingShown(bool value) {
+		if (_telebrainOnboardingShown != value) {
+			_telebrainOnboardingShown = value;
+			_saveDelayed.fire({});
+		}
+	}
+
 private:
 	void resolveRecentEmoji() const;
 
@@ -1078,6 +1088,8 @@ private:
 	rpl::variable<QString> _aiChatBaseUrl;
 	rpl::variable<QString> _aiChatApiKey;
 	rpl::variable<QString> _aiChatModel;
+
+	bool _telebrainOnboardingShown = false;
 	int _thirdSectionExtendedBy = -1; // per-window
 	rpl::variable<float64> _dialogsWithChatWidthRatio; // per-window
 	rpl::variable<float64> _dialogsNoChatWidthRatio; // per-window
