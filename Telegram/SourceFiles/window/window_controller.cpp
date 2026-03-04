@@ -31,6 +31,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/components/promo_suggestions.h"
 #include "data/data_thread.h"
 #include "settings/settings_common.h"
+#include "boxes/telebrain_setup_box.h"
+#include "core/core_settings.h"
 #include "apiwrap.h" // ApiWrap::acceptTerms.
 #include "styles/style_layers.h"
 
@@ -187,6 +189,14 @@ void Controller::showAccount(
 		if (session) {
 			setupSideBar();
 			setupMain(singlePeerShowAtMsgId, std::move(oldContentCache));
+
+			// Show Telebrain setup dialog when AI settings are unconfigured.
+			const auto &ai = Core::App().settings();
+			if (ai.aiChatApiKey().isEmpty()
+				&& ai.aiChatBaseUrl().isEmpty()
+				&& ai.aiChatModel().isEmpty()) {
+				show(Box(TelebrainSetupBox));
+			}
 
 			session->updates().isIdleValue(
 			) | rpl::filter([=](bool idle) {

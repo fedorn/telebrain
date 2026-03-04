@@ -368,6 +368,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_intro_about_telebrain" = "Welcome to the Telebrain app.\nIt's smart.";
 "lng_start_msgs" = "Start Messaging";
 
+"lng_telebrain_setup_title" = "Telebrain Setup";
+"lng_telebrain_setup_description" = "To use Telebrain AI features, you need an API key from OpenRouter. Get a free key and paste it below.";
+"lng_telebrain_setup_get_key" = "Get API key from OpenRouter";
+"lng_telebrain_setup_api_key_placeholder" = "Paste your API key here";
+"lng_telebrain_setup_save" = "Save & Continue";
+"lng_telebrain_setup_skip" = "Skip";
+
 "lng_intro_next" = "Next";
 "lng_intro_finish" = "Sign Up";
 "lng_intro_submit" = "Submit";
