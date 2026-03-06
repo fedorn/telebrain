@@ -48,26 +48,36 @@ public:
 	// Check if currently waiting for a response
 	bool isWaitingForResponse() const;
 
+	void ensureContextLoaded(std::function<void()> done);
+
 private Q_SLOTS:
-	void handleResponse(QNetworkReply *reply);
 	void handleNetworkError(QNetworkReply::NetworkError error, const QString &errorString);
 
 private:
-	QString prepareSystemMessage(const QString &chatContext) const;
+	QString prepareSystemMessage() const;
 	void getChatContext(std::function<void(QString)> done);
-		
-	// Create the request body
 	QJsonObject createRequestBody(const QJsonArray &messages) const;
+	QJsonArray buildToolsDefinition() const;
+
+	void sendCompletionRequest(QJsonArray messages);
+	void handleResponse(QNetworkReply *reply);
+
+	QString executeToolListChats(const QJsonObject &args) const;
+	QString executeToolGetUserInfo(const QJsonObject &args) const;
+	void executeToolReadChatMessages(
+		uint64 chatId,
+		int count,
+		std::function<void(const QString &)> done);
+	void processToolCalls(
+		const QJsonArray &toolCalls,
+		std::function<void(const QJsonArray &)> done);
 
 	std::unique_ptr<QNetworkAccessManager> _networkManager;
 	bool _isWaitingForResponse = false;
-	
-	// Callbacks for the current request
 	std::function<void(const QString &)> _onSuccess;
 	std::function<void(const QString &)> _onError;
-	
-	// Session controller for getting user and chat context
 	Window::SessionController* _sessionController = nullptr;
+	QJsonArray _lastSentMessages;
 };
 
 } // namespace AI 
