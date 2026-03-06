@@ -359,6 +359,8 @@ PRIVATE
     boxes/sticker_set_box.h
     boxes/stickers_box.cpp
     boxes/stickers_box.h
+    boxes/telebrain_setup_box.cpp
+    boxes/telebrain_setup_box.h
     boxes/transfer_gift_box.cpp
     boxes/transfer_gift_box.h
     boxes/translate_box.cpp
